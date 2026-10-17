@@ -18,7 +18,7 @@ import { EthiopianDateInput } from "@/components/ui/ethiopian-date-input";
 import { createEmployee } from "@/app/(dashboard)/employees/actions";
 
 type Department = { id: string; name: string };
-type Position = { id: string; title: string; departmentId: string };
+type Position = { id: string; title: string; departmentId: string | null };
 type ManagerOption = { id: string; firstName: string; lastName: string };
 type WorkLocationOption = { id: string; name: string };
 
@@ -52,7 +52,9 @@ export function NewEmployeeForm({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const filteredPositions = positions.filter((p) => p.departmentId === departmentId);
+  const filteredPositions = positions.filter(
+    (p) => p.departmentId === departmentId || p.departmentId === null
+  );
 
   const handleSubmit = (formData: FormData) => {
     setError(null);
@@ -239,9 +241,9 @@ export function NewEmployeeForm({
           </div>
           <div className="flex flex-col gap-1.5">
             <Label>Position</Label>
-            <Select name="positionId" disabled={!departmentId}>
+            <Select name="positionId">
               <SelectTrigger>
-                <SelectValue placeholder={departmentId ? "Select a position" : "Choose department first"} />
+                <SelectValue placeholder="Select a position" />
               </SelectTrigger>
               <SelectContent>
                 {filteredPositions.map((p) => (

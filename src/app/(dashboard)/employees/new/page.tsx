@@ -10,14 +10,14 @@ export default async function NewEmployeePage() {
   if (!isAdmin(session?.user.role)) redirect("/employees");
 
   const [departments, positions, managers, workLocations] = await Promise.all([
-    prisma.department.findMany({ orderBy: { name: "asc" } }),
-    prisma.position.findMany({ orderBy: { title: "asc" } }),
+    prisma.department.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
+    prisma.position.findMany({ where: { isActive: true }, orderBy: { title: "asc" } }),
     prisma.employee.findMany({
       where: { employmentStatus: "ACTIVE" },
       select: { id: true, firstName: true, lastName: true },
       orderBy: { firstName: "asc" },
     }),
-    prisma.workLocation.findMany({ orderBy: { name: "asc" } }),
+    prisma.workLocation.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
   ]);
 
   return (

@@ -34,10 +34,10 @@ export function EditEmploymentDialog({
   current,
 }: {
   employeeId: string;
-  departments: { id: string; name: string }[];
-  positions: { id: string; title: string; departmentId: string }[];
+  departments: { id: string; name: string; isActive: boolean }[];
+  positions: { id: string; title: string; departmentId: string | null; isActive: boolean }[];
   managers: { id: string; firstName: string; lastName: string }[];
-  workLocations: { id: string; name: string }[];
+  workLocations: { id: string; name: string; isActive: boolean }[];
   current: {
     departmentId: string | null;
     positionId: string | null;
@@ -57,7 +57,18 @@ export function EditEmploymentDialog({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const filteredPositions = positions.filter((p) => p.departmentId === departmentId);
+  const selectableDepartments = departments.filter(
+    (d) => d.isActive || d.id === current.departmentId
+  );
+  const selectablePositions = positions.filter(
+    (p) => p.isActive || p.id === current.positionId
+  );
+  const selectableWorkLocations = workLocations.filter(
+    (l) => l.isActive || l.id === current.workLocationId
+  );
+  const filteredPositions = selectablePositions.filter(
+    (p) => p.departmentId === departmentId || p.departmentId === null
+  );
 
   const handleSubmit = (formData: FormData) => {
     setError(null);
@@ -97,7 +108,7 @@ export function EditEmploymentDialog({
                 <SelectValue placeholder="Select a department" />
               </SelectTrigger>
               <SelectContent>
-                {departments.map((d) => (
+                {selectableDepartments.map((d) => (
                   <SelectItem key={d.id} value={d.id}>
                     {d.name}
                   </SelectItem>
@@ -107,7 +118,7 @@ export function EditEmploymentDialog({
           </div>
           <div className="flex flex-col gap-1.5">
             <Label>Position</Label>
-            <Select value={positionId} onValueChange={setPositionId} disabled={!departmentId}>
+            <Select value={positionId} onValueChange={setPositionId}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Select a position" />
               </SelectTrigger>
@@ -176,7 +187,7 @@ export function EditEmploymentDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">No location</SelectItem>
-                {workLocations.map((l) => (
+                {selectableWorkLocations.map((l) => (
                   <SelectItem key={l.id} value={l.id}>
                     {l.name}
                   </SelectItem>

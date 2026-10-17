@@ -31,7 +31,8 @@ export default async function OrganizationPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Organization</h1>
         <p className="text-sm text-muted-foreground">
-          Manage the departments, positions, and work locations used across employee records.
+          Departments, job positions and the places people work. Nothing is deleted: unused items
+          are deactivated so history stays correct.
         </p>
       </div>
 
@@ -39,7 +40,7 @@ export default async function OrganizationPage() {
         <TabsList>
           <TabsTrigger value="departments">Departments</TabsTrigger>
           <TabsTrigger value="positions">Positions</TabsTrigger>
-          <TabsTrigger value="locations">Work Locations</TabsTrigger>
+          <TabsTrigger value="locations">Work locations</TabsTrigger>
         </TabsList>
 
         <TabsContent value="departments">
@@ -47,7 +48,10 @@ export default async function OrganizationPage() {
             departments={departments.map((d) => ({
               id: d.id,
               name: d.name,
+              code: d.code,
               description: d.description,
+              parentId: d.parentId,
+              isActive: d.isActive,
               employeeCount: d._count.employees,
               positionCount: d._count.positions,
             }))}
@@ -61,7 +65,9 @@ export default async function OrganizationPage() {
               id: p.id,
               title: p.title,
               level: p.level,
-              departmentName: p.department.name,
+              departmentId: p.departmentId,
+              departmentName: p.department?.name ?? null,
+              isActive: p.isActive,
               employeeCount: p._count.employees,
             }))}
           />
@@ -72,6 +78,10 @@ export default async function OrganizationPage() {
             locations={workLocations.map((l) => ({
               id: l.id,
               name: l.name,
+              code: l.code,
+              kind: l.kind,
+              address: l.address,
+              isActive: l.isActive,
               employeeCount: l._count.employees,
             }))}
           />

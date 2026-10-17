@@ -23,13 +23,25 @@ const DEPARTMENTS: { name: string; positions: string[] }[] = [
     positions: ["HR Generalist", "HR Manager", "Recruiter", "Payroll Specialist"],
   },
   { name: "Finance", positions: ["Accountant", "Finance Manager", "Financial Analyst"] },
-  { name: "Sales", positions: ["Sales Representative", "Account Executive", "Sales Manager"] },
+  { name: "Sales", positions: ["Sales Representative", "Account Executive", "Sales Manager", "cordinetor"] },
   { name: "Marketing", positions: ["Marketing Specialist", "Content Strategist", "Marketing Manager"] },
   { name: "Operations", positions: ["Operations Coordinator", "Operations Manager", "Facilities Officer"] },
   { name: "Customer Support", positions: ["Support Agent", "Support Team Lead"] },
+  { name: "Distribution", positions: ["Distribution Manager", "Distribution Officer"] },
 ];
 
-const WORK_LOCATIONS = ["Head Office", "Bole Branch", "Piassa Branch", "Remote"];
+// Positions not tied to a single department (departmentId left null), matching
+// positions.medtechcom.net's "Used in: Any department" concept.
+const GENERIC_POSITIONS = ["Accountant", "Casher", "Chief Accountant", "Cleaner"];
+
+const WORK_LOCATIONS: { name: string; kind?: "HEAD_OFFICE" | "BRANCH" | "REGION" | "OTHER"; address?: string }[] = [
+  { name: "Head Office", kind: "HEAD_OFFICE" },
+  { name: "Bole Branch", kind: "BRANCH" },
+  { name: "Piassa Branch", kind: "BRANCH" },
+  { name: "Remote", kind: "OTHER" },
+  { name: "Mekelle", kind: "REGION", address: "Mekelle Tigray" },
+  { name: "Dessie", kind: "REGION", address: "Dessie Wollo" },
+];
 
 const LEAVE_TYPES = [
   { name: "Annual Leave", defaultDaysPerYear: 20, isPaid: true },
@@ -105,7 +117,7 @@ async function main() {
   // into two createMany calls instead of ~35 sequential round trips.
   const departmentMap: Record<string, { id: string; positionIds: Record<string, string> }> = {};
   const departmentRows: { id: string; name: string }[] = [];
-  const positionRows: { id: string; title: string; departmentId: string }[] = [];
+  const positionRows: { id: string; title: string; departmentId: string | null }[] = [];
 
   for (const dept of DEPARTMENTS) {
     const deptId = crypto.randomUUID();
@@ -118,9 +130,14 @@ async function main() {
     }
     departmentMap[dept.name] = { id: deptId, positionIds };
   }
+  // Positions usable in any department, matching the reference system's "Used in: Any
+  // department" option.
+  for (const title of GENERIC_POSITIONS) {
+    positionRows.push({ id: crypto.randomUUID(), title, departmentId: null });
+  }
   await prisma.department.createMany({ data: departmentRows });
   await prisma.position.createMany({ data: positionRows });
-  await prisma.workLocation.createMany({ data: WORK_LOCATIONS.map((name) => ({ name })) });
+  await prisma.workLocation.createMany({ data: WORK_LOCATIONS });
 
   const hireRangeStart = new Date("2016-01-01");
   const hireRangeEnd = new Date("2026-09-01");
