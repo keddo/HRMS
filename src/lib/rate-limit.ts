@@ -1,32 +1,33 @@
-type Bucket = { count: number; resetAt: number };
-
-const buckets = new Map<string, Bucket>();
+import { prisma } from "@/lib/prisma";
 
 /**
- * Simple in-memory fixed-window rate limiter, keyed by an arbitrary string
- * (e.g. an email or IP). Suitable for a single-instance deployment; a
- * horizontally-scaled deployment should move this to a shared store (Redis).
+ * DB-backed fixed-window rate limiter, keyed by an arbitrary string (e.g. an email).
+ * Backed by Postgres rather than in-memory state so it works correctly across the
+ * independent, ephemeral serverless instances a platform like Vercel runs.
  */
-export function checkRateLimit(
-  key: string,
+export async function checkRateLimit(
+  identifier: string,
   { max, windowMs }: { max: number; windowMs: number }
-): { allowed: boolean; retryAfterMs: number } {
-  const now = Date.now();
-  const bucket = buckets.get(key);
+): Promise<{ allowed: boolean }> {
+  const windowStart = new Date(Date.now() - windowMs);
 
-  if (!bucket || bucket.resetAt <= now) {
-    buckets.set(key, { count: 1, resetAt: now + windowMs });
-    return { allowed: true, retryAfterMs: 0 };
+  // Opportunistically sweep this identifier's stale attempts so the table doesn't grow unbounded.
+  await prisma.loginAttempt.deleteMany({
+    where: { identifier, createdAt: { lt: windowStart } },
+  });
+
+  const count = await prisma.loginAttempt.count({
+    where: { identifier, createdAt: { gte: windowStart } },
+  });
+
+  if (count >= max) {
+    return { allowed: false };
   }
 
-  if (bucket.count >= max) {
-    return { allowed: false, retryAfterMs: bucket.resetAt - now };
-  }
-
-  bucket.count++;
-  return { allowed: true, retryAfterMs: 0 };
+  await prisma.loginAttempt.create({ data: { identifier } });
+  return { allowed: true };
 }
 
-export function resetRateLimit(key: string) {
-  buckets.delete(key);
+export async function resetRateLimit(identifier: string) {
+  await prisma.loginAttempt.deleteMany({ where: { identifier } });
 }

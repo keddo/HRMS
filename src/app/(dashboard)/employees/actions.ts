@@ -1,13 +1,11 @@
 "use server";
 
-import path from "node:path";
-import fs from "node:fs/promises";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { isAdmin } from "@/lib/rbac";
-import { ensureUploadsDir, safeUploadFileName, UPLOADS_DIR } from "@/lib/uploads";
+import { uploadDocumentBlob } from "@/lib/blob-storage";
 import { encryptField } from "@/lib/crypto";
 import { recordAudit } from "@/lib/audit";
 
@@ -47,18 +45,15 @@ export async function uploadDocument(employeeId: string, formData: FormData) {
   const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
   if (!employee) throw new Error("Employee not found.");
 
-  await ensureUploadsDir();
-  const storedName = safeUploadFileName(file.name);
-  const destPath = path.join(UPLOADS_DIR, storedName);
   const buffer = Buffer.from(await file.arrayBuffer());
-  await fs.writeFile(destPath, buffer);
+  const pathname = await uploadDocumentBlob(employeeId, file.name, buffer, file.type);
 
   await prisma.document.create({
     data: {
       employeeId,
       type,
       fileName: file.name,
-      filePath: storedName,
+      filePath: pathname,
     },
   });
 

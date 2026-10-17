@@ -664,3 +664,14 @@ model PasswordResetToken {
 
   @@index([userId])
 }
+
+// ---------- Rate Limiting ----------
+
+/** Failed login attempts, used for DB-backed rate limiting (works across serverless instances). */
+model LoginAttempt {
+  id         String   @id @default(cuid())
+  identifier String
+  createdAt  DateTime @default(now())
+
+  @@index([identifier, createdAt])
+}

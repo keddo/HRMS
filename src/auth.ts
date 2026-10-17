@@ -22,7 +22,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!email || !password) return null;
 
         const rateLimitKey = `login:${email.toLowerCase()}`;
-        const { allowed } = checkRateLimit(rateLimitKey, LOGIN_RATE_LIMIT);
+        const { allowed } = await checkRateLimit(rateLimitKey, LOGIN_RATE_LIMIT);
         if (!allowed) {
           throw new Error("Too many failed sign-in attempts. Please wait a few minutes and try again.");
         }
@@ -36,7 +36,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const valid = await bcrypt.compare(password, user.passwordHash);
         if (!valid) return null;
 
-        resetRateLimit(rateLimitKey);
+        await resetRateLimit(rateLimitKey);
         await prisma.user.update({
           where: { id: user.id },
           data: { lastLoginAt: new Date() },

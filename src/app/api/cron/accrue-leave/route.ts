@@ -2,14 +2,16 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 /**
- * Monthly leave accrual. Intended to be called once a month by a host-level cron job:
- *   curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://your-domain/api/cron/accrue-leave
+ * Monthly leave accrual. Vercel Cron calls this via GET, automatically attaching
+ * `Authorization: Bearer $CRON_SECRET` (see vercel.json). A host-level cron elsewhere
+ * can call it manually the same way:
+ *   curl -H "Authorization: Bearer $CRON_SECRET" https://your-domain/api/cron/accrue-leave
  *
  * Adds (defaultDaysPerYear / 12) to each active employee's allocated balance for every
  * paid leave type, for the current year. Safe to call more than once in the same month
- * only if you don't mind double-accrual — schedule it with a monthly cron, not more often.
+ * only if you don't mind double-accrual — schedule it monthly, not more often.
  */
-export async function POST(req: Request) {
+async function handleAccrual(req: Request) {
   const secret = process.env.CRON_SECRET;
   const authHeader = req.headers.get("authorization");
   if (!secret || authHeader !== `Bearer ${secret}`) {
@@ -49,3 +51,6 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ ok: true, employees: employees.length, leaveTypes: leaveTypes.length, updated });
 }
+
+export const GET = handleAccrual;
+export const POST = handleAccrual;

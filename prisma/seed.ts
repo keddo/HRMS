@@ -4,7 +4,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
-const prisma = new PrismaClient({ adapter });
+const prisma = new PrismaClient({ adapter, transactionOptions: { maxWait: 10000, timeout: 60000 } });
 
 const DEPARTMENTS: { name: string; positions: string[] }[] = [
   { name: "Executive", positions: ["Chief Executive Officer", "Chief Operating Officer"] },

@@ -1,10 +1,8 @@
-import path from "node:path";
-import fs from "node:fs/promises";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { isAdmin } from "@/lib/rbac";
-import { UPLOADS_DIR } from "@/lib/uploads";
+import { readDocumentBlob } from "@/lib/blob-storage";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -23,16 +21,18 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const filePath = path.join(UPLOADS_DIR, document.filePath);
   try {
-    const data = await fs.readFile(filePath);
-    return new NextResponse(new Uint8Array(data), {
+    const blob = await readDocumentBlob(document.filePath);
+    if (!blob) {
+      return NextResponse.json({ error: "File missing in storage" }, { status: 404 });
+    }
+    return new NextResponse(blob.stream, {
       headers: {
         "Content-Disposition": `attachment; filename="${document.fileName}"`,
         "Content-Type": "application/octet-stream",
       },
     });
   } catch {
-    return NextResponse.json({ error: "File missing on disk" }, { status: 404 });
+    return NextResponse.json({ error: "File missing in storage" }, { status: 404 });
   }
 }
