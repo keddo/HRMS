@@ -157,20 +157,27 @@ export default async function EmployeeProfilePage({
                     address: employee.address,
                     dateOfBirth: employee.dateOfBirth?.toISOString().slice(0, 10) ?? null,
                     gender: employee.gender,
+                    maritalStatus: employee.maritalStatus,
                     emergencyContactName: employee.emergencyContactName,
                     emergencyContactPhone: employee.emergencyContactPhone,
+                    emergencyContactRelationship: employee.emergencyContactRelationship,
                   }}
                 />
               )}
             </CardHeader>
             <CardContent className="flex flex-col gap-2 text-sm">
               <Row label="Gender" value={employee.gender.replace("_", " ")} />
+              <Row label="Marital Status" value={employee.maritalStatus.replace("_", " ")} />
               <Row
                 label="Date of Birth"
                 value={employee.dateOfBirth ? employee.dateOfBirth.toLocaleDateString() : "—"}
               />
               <Row label="Address" value={employee.address ?? "—"} />
               <Row label="Emergency Contact" value={employee.emergencyContactName ?? "—"} />
+              <Row
+                label="Relationship"
+                value={employee.emergencyContactRelationship ?? "—"}
+              />
               <Row label="Emergency Phone" value={employee.emergencyContactPhone ?? "—"} />
             </CardContent>
           </Card>
@@ -189,6 +196,8 @@ export default async function EmployeeProfilePage({
                     positionId: employee.positionId,
                     managerId: employee.managerId,
                     employmentStatus: employee.employmentStatus,
+                    employmentType: employee.employmentType,
+                    workLocation: employee.workLocation,
                   }}
                 />
               )}
@@ -204,6 +213,8 @@ export default async function EmployeeProfilePage({
                 icon={UsersIcon}
               />
               <Row label="Hire Date" value={employee.hireDate.toLocaleDateString()} />
+              <Row label="Employment Type" value={employee.employmentType.replace("_", " ")} />
+              <Row label="Work Location" value={employee.workLocation ?? "—"} />
             </CardContent>
           </Card>
 
@@ -217,6 +228,7 @@ export default async function EmployeeProfilePage({
                     bankName={employee.bankName}
                     hasBankAccount={!!employee.bankAccountNumber}
                     hasNationalId={!!employee.nationalId}
+                    hasTelebirr={!!employee.telebirrNumber}
                   />
                 )}
               </CardHeader>
@@ -224,6 +236,7 @@ export default async function EmployeeProfilePage({
                 <Row label="Bank" value={employee.bankName ?? "—"} />
                 <Row label="Account Number" value={maskSecret(decryptField(employee.bankAccountNumber))} />
                 <Row label="National ID" value={maskSecret(decryptField(employee.nationalId))} />
+                <Row label="Telebirr Number" value={maskSecret(decryptField(employee.telebirrNumber))} />
               </CardContent>
             </Card>
           )}

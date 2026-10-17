@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import bcrypt from "bcryptjs";
+import crypto from "node:crypto";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -18,7 +20,15 @@ const ALLOWED_TYPES = new Set([
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
 
-const documentTypeEnum = z.enum(["CONTRACT", "ID_COPY", "CERTIFICATE", "RESUME", "OTHER"]);
+const documentTypeEnum = z.enum([
+  "CONTRACT",
+  "ID_COPY",
+  "CERTIFICATE",
+  "RESUME",
+  "GUARANTOR",
+  "WORK_EXPERIENCE",
+  "OTHER",
+]);
 
 export async function uploadDocument(employeeId: string, formData: FormData) {
   const session = await auth();
@@ -60,16 +70,78 @@ export async function uploadDocument(employeeId: string, formData: FormData) {
   revalidatePath(`/employees/${employeeId}`);
 }
 
-const createEmployeeSchema = z.object({
-  firstName: z.string().min(1),
-  lastName: z.string().min(1),
-  email: z.string().email(),
-  phone: z.string().optional(),
-  hireDate: z.string().min(1),
-  departmentId: z.string().min(1),
-  positionId: z.string().optional(),
-  managerId: z.string().optional(),
-});
+const createEmployeeSchema = z
+  .object({
+    firstName: z.string().min(1),
+    lastName: z.string().min(1),
+    email: z.string().email(),
+    phone: z.string().optional(),
+    address: z.string().optional(),
+    dateOfBirth: z.string().optional(),
+    gender: z.enum(["MALE", "FEMALE", "OTHER", "UNSPECIFIED"]).optional(),
+    maritalStatus: z.enum(["SINGLE", "MARRIED", "DIVORCED", "WIDOWED", "UNSPECIFIED"]).optional(),
+    telebirrNumber: z.string().optional(),
+    hireDate: z.string().min(1),
+    departmentId: z.string().min(1),
+    positionId: z.string().optional(),
+    managerId: z.string().optional(),
+    workLocation: z.string().optional(),
+    employmentType: z.enum(["PERMANENT", "CONTRACT", "INTERN", "PART_TIME"]).optional(),
+    emergencyContactName: z.string().optional(),
+    emergencyContactPhone: z.string().optional(),
+    emergencyContactRelationship: z.string().optional(),
+  })
+  .refine(
+    (data) => {
+      const hireDate = new Date(data.hireDate);
+      const maxHireDate = new Date();
+      maxHireDate.setFullYear(maxHireDate.getFullYear() + 1);
+      return hireDate <= maxHireDate;
+    },
+    { message: "Hire date can be up to a year ahead, not further.", path: ["hireDate"] }
+  )
+  .refine(
+    (data) => {
+      if (!data.dateOfBirth) return true;
+      const dob = new Date(data.dateOfBirth);
+      const hireDate = new Date(data.hireDate);
+      const minHireDate = new Date(dob);
+      minHireDate.setFullYear(minHireDate.getFullYear() + 15);
+      return hireDate >= minHireDate;
+    },
+    { message: "Date of birth must be at least 15 years before the hire date.", path: ["dateOfBirth"] }
+  );
+
+const MAX_DOCUMENT_SIZE = 10 * 1024 * 1024; // 10MB
+const ALLOWED_DOCUMENT_TYPES = new Set([
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+]);
+
+async function uploadOptionalDocument(
+  employeeId: string,
+  formData: FormData,
+  fieldName: string,
+  type: "ID_COPY" | "GUARANTOR" | "WORK_EXPERIENCE"
+) {
+  const file = formData.get(fieldName);
+  if (!(file instanceof File) || file.size === 0) return;
+  if (file.size > MAX_DOCUMENT_SIZE) {
+    throw new Error(`${file.name} is too large (max 10MB).`);
+  }
+  if (!ALLOWED_DOCUMENT_TYPES.has(file.type)) {
+    throw new Error(`${file.name}: unsupported file type.`);
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const pathname = await uploadDocumentBlob(employeeId, file.name, buffer, file.type);
+  await prisma.document.create({
+    data: { employeeId, type, fileName: file.name, filePath: pathname },
+  });
+}
 
 export async function createEmployee(formData: FormData) {
   const session = await auth();
@@ -82,11 +154,26 @@ export async function createEmployee(formData: FormData) {
     lastName: formData.get("lastName"),
     email: formData.get("email"),
     phone: formData.get("phone") || undefined,
+    address: formData.get("address") || undefined,
+    dateOfBirth: formData.get("dateOfBirth") || undefined,
+    gender: formData.get("gender") || undefined,
+    maritalStatus: formData.get("maritalStatus") || undefined,
+    telebirrNumber: formData.get("telebirrNumber") || undefined,
     hireDate: formData.get("hireDate"),
     departmentId: formData.get("departmentId"),
     positionId: formData.get("positionId") || undefined,
     managerId: formData.get("managerId") || undefined,
+    workLocation: formData.get("workLocation") || undefined,
+    employmentType: formData.get("employmentType") || undefined,
+    emergencyContactName: formData.get("emergencyContactName") || undefined,
+    emergencyContactPhone: formData.get("emergencyContactPhone") || undefined,
+    emergencyContactRelationship: formData.get("emergencyContactRelationship") || undefined,
   });
+
+  const existingEmail = await prisma.employee.findUnique({ where: { email: parsed.email } });
+  if (existingEmail) {
+    throw new Error("An employee with this email already exists.");
+  }
 
   const lastEmployee = await prisma.employee.findFirst({
     orderBy: { employeeCode: "desc" },
@@ -104,12 +191,37 @@ export async function createEmployee(formData: FormData) {
       lastName: parsed.lastName,
       email: parsed.email,
       phone: parsed.phone,
+      address: parsed.address,
+      dateOfBirth: parsed.dateOfBirth ? new Date(parsed.dateOfBirth) : null,
+      gender: parsed.gender,
+      maritalStatus: parsed.maritalStatus,
+      telebirrNumber: parsed.telebirrNumber ? encryptField(parsed.telebirrNumber) : null,
       hireDate: new Date(parsed.hireDate),
       departmentId: parsed.departmentId,
       positionId: parsed.positionId || null,
       managerId: parsed.managerId || null,
+      workLocation: parsed.workLocation || null,
+      employmentType: parsed.employmentType,
+      emergencyContactName: parsed.emergencyContactName || null,
+      emergencyContactPhone: parsed.emergencyContactPhone || null,
+      emergencyContactRelationship: parsed.emergencyContactRelationship || null,
     },
   });
+
+  // Give the employee a login immediately: an admin can issue a reset link
+  // from their profile (Reset Password) right after they're created.
+  await prisma.user.create({
+    data: {
+      email: employee.email,
+      passwordHash: await bcrypt.hash(crypto.randomUUID(), 10),
+      role: "EMPLOYEE",
+      employeeId: employee.id,
+    },
+  });
+
+  await uploadOptionalDocument(employee.id, formData, "nationalIdDocument", "ID_COPY");
+  await uploadOptionalDocument(employee.id, formData, "guarantorDocument", "GUARANTOR");
+  await uploadOptionalDocument(employee.id, formData, "workExperienceDocument", "WORK_EXPERIENCE");
 
   await prisma.employmentHistory.create({
     data: {
@@ -141,6 +253,8 @@ const updateEmploymentSchema = z.object({
   positionId: z.string().optional(),
   managerId: z.string().optional(),
   employmentStatus: z.enum(["ACTIVE", "ON_LEAVE", "SUSPENDED", "TERMINATED"]),
+  employmentType: z.enum(["PERMANENT", "CONTRACT", "INTERN", "PART_TIME"]).optional(),
+  workLocation: z.string().optional(),
   changeReason: z.string().optional(),
 });
 
@@ -155,6 +269,8 @@ export async function updateEmployment(employeeId: string, formData: FormData) {
     positionId: formData.get("positionId") || undefined,
     managerId: formData.get("managerId") || undefined,
     employmentStatus: formData.get("employmentStatus"),
+    employmentType: formData.get("employmentType") || undefined,
+    workLocation: formData.get("workLocation") || undefined,
     changeReason: formData.get("changeReason") || undefined,
   });
 
@@ -169,6 +285,8 @@ export async function updateEmployment(employeeId: string, formData: FormData) {
       positionId: parsed.positionId || null,
       managerId: parsed.managerId || null,
       employmentStatus: parsed.employmentStatus,
+      employmentType: parsed.employmentType,
+      workLocation: parsed.workLocation || null,
       terminationDate: parsed.employmentStatus === "TERMINATED" ? new Date() : null,
     },
   });
@@ -200,6 +318,7 @@ const sensitiveInfoSchema = z.object({
   bankName: z.string().optional(),
   bankAccountNumber: z.string().optional(),
   nationalId: z.string().optional(),
+  telebirrNumber: z.string().optional(),
 });
 
 export async function updateSensitiveInfo(employeeId: string, formData: FormData) {
@@ -212,6 +331,7 @@ export async function updateSensitiveInfo(employeeId: string, formData: FormData
     bankName: formData.get("bankName") || undefined,
     bankAccountNumber: formData.get("bankAccountNumber") || undefined,
     nationalId: formData.get("nationalId") || undefined,
+    telebirrNumber: formData.get("telebirrNumber") || undefined,
   });
 
   await prisma.employee.update({
@@ -222,6 +342,7 @@ export async function updateSensitiveInfo(employeeId: string, formData: FormData
       // pre-fills decrypted PII — only a non-empty value overwrites what's on file.
       bankAccountNumber: parsed.bankAccountNumber ? encryptField(parsed.bankAccountNumber) : undefined,
       nationalId: parsed.nationalId ? encryptField(parsed.nationalId) : undefined,
+      telebirrNumber: parsed.telebirrNumber ? encryptField(parsed.telebirrNumber) : undefined,
     },
   });
 
@@ -230,7 +351,7 @@ export async function updateSensitiveInfo(employeeId: string, formData: FormData
     action: "UPDATE",
     entityType: "Employee",
     entityId: employeeId,
-    summary: "Updated bank/national ID information",
+    summary: "Updated bank/national ID/Telebirr information",
   });
 
   revalidatePath(`/employees/${employeeId}`);
@@ -241,8 +362,10 @@ const personalInfoSchema = z.object({
   address: z.string().optional(),
   dateOfBirth: z.string().optional(),
   gender: z.enum(["MALE", "FEMALE", "OTHER", "UNSPECIFIED"]).optional(),
+  maritalStatus: z.enum(["SINGLE", "MARRIED", "DIVORCED", "WIDOWED", "UNSPECIFIED"]).optional(),
   emergencyContactName: z.string().optional(),
   emergencyContactPhone: z.string().optional(),
+  emergencyContactRelationship: z.string().optional(),
 });
 
 export async function updatePersonalInfo(employeeId: string, formData: FormData) {
@@ -257,8 +380,10 @@ export async function updatePersonalInfo(employeeId: string, formData: FormData)
     address: formData.get("address") || undefined,
     dateOfBirth: formData.get("dateOfBirth") || undefined,
     gender: formData.get("gender") || undefined,
+    maritalStatus: formData.get("maritalStatus") || undefined,
     emergencyContactName: formData.get("emergencyContactName") || undefined,
     emergencyContactPhone: formData.get("emergencyContactPhone") || undefined,
+    emergencyContactRelationship: formData.get("emergencyContactRelationship") || undefined,
   });
 
   await prisma.employee.update({
@@ -268,8 +393,10 @@ export async function updatePersonalInfo(employeeId: string, formData: FormData)
       address: parsed.address || null,
       dateOfBirth: parsed.dateOfBirth ? new Date(parsed.dateOfBirth) : null,
       gender: parsed.gender,
+      maritalStatus: parsed.maritalStatus,
       emergencyContactName: parsed.emergencyContactName || null,
       emergencyContactPhone: parsed.emergencyContactPhone || null,
+      emergencyContactRelationship: parsed.emergencyContactRelationship || null,
     },
   });
 

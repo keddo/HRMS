@@ -20,7 +20,15 @@ type Document = {
   uploadedAt: string;
 };
 
-const DOC_TYPES = ["CONTRACT", "ID_COPY", "CERTIFICATE", "RESUME", "OTHER"];
+const DOC_TYPES = [
+  "CONTRACT",
+  "ID_COPY",
+  "CERTIFICATE",
+  "RESUME",
+  "GUARANTOR",
+  "WORK_EXPERIENCE",
+  "OTHER",
+];
 
 export function DocumentsTab({
   employeeId,

@@ -21,9 +21,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { EthiopianDateInput } from "@/components/ui/ethiopian-date-input";
 import { updatePersonalInfo } from "@/app/(dashboard)/employees/actions";
 
 const GENDERS = ["MALE", "FEMALE", "OTHER", "UNSPECIFIED"];
+const MARITAL_STATUSES = ["SINGLE", "MARRIED", "DIVORCED", "WIDOWED", "UNSPECIFIED"];
 
 export function EditPersonalInfoDialog({
   employeeId,
@@ -35,18 +37,22 @@ export function EditPersonalInfoDialog({
     address: string | null;
     dateOfBirth: string | null;
     gender: string;
+    maritalStatus: string;
     emergencyContactName: string | null;
     emergencyContactPhone: string | null;
+    emergencyContactRelationship: string | null;
   };
 }) {
   const [open, setOpen] = useState(false);
   const [gender, setGender] = useState(current.gender);
+  const [maritalStatus, setMaritalStatus] = useState(current.maritalStatus);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const handleSubmit = (formData: FormData) => {
     setError(null);
     formData.set("gender", gender);
+    formData.set("maritalStatus", maritalStatus);
     startTransition(async () => {
       try {
         await updatePersonalInfo(employeeId, formData);
@@ -77,29 +83,45 @@ export function EditPersonalInfoDialog({
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="dateOfBirth">Date of Birth</Label>
-              <Input
+              <EthiopianDateInput
                 id="dateOfBirth"
                 name="dateOfBirth"
-                type="date"
-                defaultValue={current.dateOfBirth ?? ""}
+                defaultValue={current.dateOfBirth}
               />
             </div>
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <Label>Gender</Label>
-            <Select value={gender} onValueChange={setGender}>
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {GENDERS.map((g) => (
-                  <SelectItem key={g} value={g}>
-                    {g.replace("_", " ")}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label>Gender</Label>
+              <Select value={gender} onValueChange={setGender}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {GENDERS.map((g) => (
+                    <SelectItem key={g} value={g}>
+                      {g.replace("_", " ")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Marital Status</Label>
+              <Select value={maritalStatus} onValueChange={setMaritalStatus}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MARITAL_STATUSES.map((m) => (
+                    <SelectItem key={m} value={m}>
+                      {m.replace("_", " ")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="flex flex-col gap-1.5">
@@ -107,13 +129,21 @@ export function EditPersonalInfoDialog({
             <Textarea id="address" name="address" rows={2} defaultValue={current.address ?? ""} />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="emergencyContactName">Emergency Contact</Label>
               <Input
                 id="emergencyContactName"
                 name="emergencyContactName"
                 defaultValue={current.emergencyContactName ?? ""}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="emergencyContactRelationship">Relationship</Label>
+              <Input
+                id="emergencyContactRelationship"
+                name="emergencyContactRelationship"
+                defaultValue={current.emergencyContactRelationship ?? ""}
               />
             </div>
             <div className="flex flex-col gap-1.5">

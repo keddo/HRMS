@@ -20,11 +20,13 @@ export function EditSensitiveInfoDialog({
   bankName,
   hasBankAccount,
   hasNationalId,
+  hasTelebirr,
 }: {
   employeeId: string;
   bankName: string | null;
   hasBankAccount: boolean;
   hasNationalId: boolean;
+  hasTelebirr: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,9 +77,17 @@ export function EditSensitiveInfoDialog({
               placeholder={hasNationalId ? "•••• already on file — leave blank to keep" : ""}
             />
           </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="telebirrNumber">Telebirr Number</Label>
+            <Input
+              id="telebirrNumber"
+              name="telebirrNumber"
+              placeholder={hasTelebirr ? "•••• already on file — leave blank to keep" : "Where salary is paid"}
+            />
+          </div>
           <p className="text-xs text-muted-foreground">
-            Bank account and national ID are encrypted at rest. Leave a field blank to keep its
-            current value unchanged.
+            Bank account, national ID, and Telebirr number are encrypted at rest. Leave a field
+            blank to keep its current value unchanged.
           </p>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <DialogFooter>

@@ -23,6 +23,7 @@ import {
 import { updateEmployment } from "@/app/(dashboard)/employees/actions";
 
 const STATUSES = ["ACTIVE", "ON_LEAVE", "SUSPENDED", "TERMINATED"];
+const EMPLOYMENT_TYPES = ["PERMANENT", "CONTRACT", "INTERN", "PART_TIME"];
 
 export function EditEmploymentDialog({
   employeeId,
@@ -40,6 +41,8 @@ export function EditEmploymentDialog({
     positionId: string | null;
     managerId: string | null;
     employmentStatus: string;
+    employmentType: string;
+    workLocation: string | null;
   };
 }) {
   const [open, setOpen] = useState(false);
@@ -47,6 +50,7 @@ export function EditEmploymentDialog({
   const [positionId, setPositionId] = useState(current.positionId ?? "");
   const [managerId, setManagerId] = useState(current.managerId ?? "");
   const [status, setStatus] = useState(current.employmentStatus);
+  const [employmentType, setEmploymentType] = useState(current.employmentType);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -58,6 +62,7 @@ export function EditEmploymentDialog({
     formData.set("positionId", positionId);
     formData.set("managerId", managerId === "none" ? "" : managerId);
     formData.set("employmentStatus", status);
+    formData.set("employmentType", employmentType);
     startTransition(async () => {
       try {
         await updateEmployment(employeeId, formData);
@@ -143,6 +148,30 @@ export function EditEmploymentDialog({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label>Employment Type</Label>
+            <Select value={employmentType} onValueChange={setEmploymentType} required>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {EMPLOYMENT_TYPES.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {t.replace("_", " ")}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="workLocation">Work Location</Label>
+            <Input
+              id="workLocation"
+              name="workLocation"
+              defaultValue={current.workLocation ?? ""}
+              placeholder="e.g. Head Office, Bole Branch"
+            />
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="changeReason">Reason (optional)</Label>

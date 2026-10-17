@@ -29,6 +29,21 @@ enum Gender {
   UNSPECIFIED
 }
 
+enum MaritalStatus {
+  SINGLE
+  MARRIED
+  DIVORCED
+  WIDOWED
+  UNSPECIFIED
+}
+
+enum EmploymentType {
+  PERMANENT
+  CONTRACT
+  INTERN
+  PART_TIME
+}
+
 enum LeaveStatus {
   PENDING
   APPROVED
@@ -49,48 +64,50 @@ enum DocumentType {
   ID_COPY
   CERTIFICATE
   RESUME
+  GUARANTOR
+  WORK_EXPERIENCE
   OTHER
 }
 
 // ---------- Auth ----------
 
 model User {
-  id            String   @id @default(cuid())
-  email         String   @unique
-  passwordHash  String
-  role          Role     @default(EMPLOYEE)
-  employee      Employee? @relation(fields: [employeeId], references: [id])
-  employeeId    String?  @unique
-  isActive      Boolean  @default(true)
-  lastLoginAt   DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  role         Role      @default(EMPLOYEE)
+  employee     Employee? @relation(fields: [employeeId], references: [id])
+  employeeId   String?   @unique
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  approvedLeaveRequests LeaveRequest[] @relation("Approver")
-  announcements         Announcement[]
-  processedPayrollRuns  PayrollRun[]
-  createdRequisitions   JobRequisition[]
-  completedChecklistItems EmployeeChecklistItem[]
-  notifications         Notification[]
-  auditLogs             AuditLog[]
+  approvedLeaveRequests     LeaveRequest[]          @relation("Approver")
+  announcements             Announcement[]
+  processedPayrollRuns      PayrollRun[]
+  createdRequisitions       JobRequisition[]
+  completedChecklistItems   EmployeeChecklistItem[]
+  notifications             Notification[]
+  auditLogs                 AuditLog[]
   recordedEmploymentHistory EmploymentHistory[]
   recordedSalaryHistory     SalaryHistory[]
-  passwordResetTokens   PasswordResetToken[]
+  passwordResetTokens       PasswordResetToken[]
 }
 
 // ---------- Core HR ----------
 
 model Department {
-  id          String     @id @default(cuid())
-  name        String     @unique
-  description String?
-  headId      String?    @unique
-  head        Employee?  @relation("DepartmentHead", fields: [headId], references: [id])
-  positions   Position[]
-  employees   Employee[] @relation("DepartmentEmployees")
+  id           String           @id @default(cuid())
+  name         String           @unique
+  description  String?
+  headId       String?          @unique
+  head         Employee?        @relation("DepartmentHead", fields: [headId], references: [id])
+  positions    Position[]
+  employees    Employee[]       @relation("DepartmentEmployees")
   requisitions JobRequisition[]
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
 }
 
 model Position {
@@ -107,20 +124,23 @@ model Position {
 }
 
 model Employee {
-  id          String   @id @default(cuid())
-  employeeCode String  @unique
-  firstName   String
-  lastName    String
-  email       String   @unique
-  phone       String?
-  avatarUrl   String?
-  dateOfBirth DateTime?
-  gender      Gender   @default(UNSPECIFIED)
-  address     String?
+  id            String        @id @default(cuid())
+  employeeCode  String        @unique
+  firstName     String
+  lastName      String
+  email         String        @unique
+  phone         String?
+  avatarUrl     String?
+  dateOfBirth   DateTime?
+  gender        Gender        @default(UNSPECIFIED)
+  maritalStatus MaritalStatus @default(UNSPECIFIED)
+  address       String?
 
   hireDate         DateTime
   terminationDate  DateTime?
   employmentStatus EmploymentStatus @default(ACTIVE)
+  employmentType   EmploymentType   @default(PERMANENT)
+  workLocation     String?
 
   departmentId String?
   department   Department? @relation("DepartmentEmployees", fields: [departmentId], references: [id])
@@ -134,24 +154,26 @@ model Employee {
 
   departmentHeadOf Department? @relation("DepartmentHead")
 
-  emergencyContactName  String?
-  emergencyContactPhone String?
-  bankName              String?
-  bankAccountNumber     String? // encrypted at rest, see src/lib/crypto.ts
-  nationalId            String? // encrypted at rest, see src/lib/crypto.ts
+  emergencyContactName         String?
+  emergencyContactPhone        String?
+  emergencyContactRelationship String?
+  bankName                     String?
+  bankAccountNumber            String? // encrypted at rest, see src/lib/crypto.ts
+  nationalId                   String? // encrypted at rest, see src/lib/crypto.ts
+  telebirrNumber               String? // encrypted at rest, see src/lib/crypto.ts
 
-  user          User?
-  documents     Document[]
-  leaveBalances LeaveBalance[]
-  leaveRequests LeaveRequest[] @relation("RequestedBy")
-  attendances   Attendance[]
-  salary        EmployeeSalary?
-  payslips      Payslip[]
-  goals         Goal[]
-  reviews       PerformanceReview[]
-  interviews    Interview[]
-  checklists    EmployeeChecklist[]
-  assets        Asset[]
+  user              User?
+  documents         Document[]
+  leaveBalances     LeaveBalance[]
+  leaveRequests     LeaveRequest[]      @relation("RequestedBy")
+  attendances       Attendance[]
+  salary            EmployeeSalary?
+  payslips          Payslip[]
+  goals             Goal[]
+  reviews           PerformanceReview[]
+  interviews        Interview[]
+  checklists        EmployeeChecklist[]
+  assets            Asset[]
   employmentHistory EmploymentHistory[]
   salaryHistory     SalaryHistory[]
 
@@ -175,24 +197,24 @@ model Document {
 // ---------- Leave ----------
 
 model LeaveType {
-  id                 String   @id @default(cuid())
-  name               String   @unique
-  defaultDaysPerYear Int      @default(0)
-  isPaid             Boolean  @default(true)
+  id                 String         @id @default(cuid())
+  name               String         @unique
+  defaultDaysPerYear Int            @default(0)
+  isPaid             Boolean        @default(true)
   leaveBalances      LeaveBalance[]
   leaveRequests      LeaveRequest[]
-  createdAt          DateTime @default(now())
+  createdAt          DateTime       @default(now())
 }
 
 model LeaveBalance {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   employeeId    String
-  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee      Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   leaveTypeId   String
   leaveType     LeaveType @relation(fields: [leaveTypeId], references: [id])
   year          Int
-  allocatedDays Float    @default(0)
-  usedDays      Float    @default(0)
+  allocatedDays Float     @default(0)
+  usedDays      Float     @default(0)
 
   @@unique([employeeId, leaveTypeId, year])
 }
@@ -217,13 +239,13 @@ model LeaveRequest {
 // ---------- Attendance ----------
 
 model Attendance {
-  id         String            @id @default(cuid())
+  id         String           @id @default(cuid())
   employeeId String
-  employee   Employee          @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee   Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   date       DateTime
   clockIn    DateTime?
   clockOut   DateTime?
-  status     AttendanceStatus  @default(PRESENT)
+  status     AttendanceStatus @default(PRESENT)
 
   @@unique([employeeId, date])
   @@index([date])
@@ -301,16 +323,16 @@ model PayrollRun {
 }
 
 model Payslip {
-  id              String      @id @default(cuid())
+  id              String        @id @default(cuid())
   payrollRunId    String
-  payrollRun      PayrollRun  @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  payrollRun      PayrollRun    @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
   employeeId      String
-  employee        Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee        Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   grossPay        Float
   totalDeductions Float
   netPay          Float
   lines           PayslipLine[]
-  createdAt       DateTime    @default(now())
+  createdAt       DateTime      @default(now())
 
   @@unique([payrollRunId, employeeId])
 }
@@ -567,17 +589,17 @@ enum AssetStatus {
 }
 
 model Asset {
-  id            String      @id @default(cuid())
-  name          String
-  category      String
-  serialNumber  String?     @unique
-  purchaseDate  DateTime?
-  status        AssetStatus @default(AVAILABLE)
-  assignedToId  String?
-  assignedTo    Employee?   @relation(fields: [assignedToId], references: [id])
-  assignedAt    DateTime?
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  id           String      @id @default(cuid())
+  name         String
+  category     String
+  serialNumber String?     @unique
+  purchaseDate DateTime?
+  status       AssetStatus @default(AVAILABLE)
+  assignedToId String?
+  assignedTo   Employee?   @relation(fields: [assignedToId], references: [id])
+  assignedAt   DateTime?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
 }
 
 // ---------- Notifications ----------
@@ -654,20 +676,22 @@ model SalaryHistory {
 // ---------- Password Reset ----------
 
 model PasswordResetToken {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash String   @unique
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   @@index([userId])
 }
 
 // ---------- Rate Limiting ----------
 
-/** Failed login attempts, used for DB-backed rate limiting (works across serverless instances). */
+/**
+ * Failed login attempts, used for DB-backed rate limiting (works across serverless instances).
+ */
 model LoginAttempt {
   id         String   @id @default(cuid())
   identifier String
