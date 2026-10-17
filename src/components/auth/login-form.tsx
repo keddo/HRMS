@@ -20,7 +20,7 @@ const loginSchema = z.object({
 
 type LoginValues = z.infer<typeof loginSchema>;
 
-export function LoginForm() {
+export function LoginForm({ companyName, logoSrc }: { companyName: string; logoSrc: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [serverError, setServerError] = useState<string | null>(null);
@@ -54,8 +54,8 @@ export function LoginForm() {
     <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center text-center">
-          <Image src="/logo.png" alt="" width={48} height={48} className="mb-2 rounded-full" />
-          <CardTitle className="text-xl">Sign in to HRMS</CardTitle>
+          <Image src={logoSrc} alt="" width={48} height={48} className="mb-2 rounded-full" />
+          <CardTitle className="text-xl">Sign in to {companyName}</CardTitle>
           <CardDescription>Enter your work email and password</CardDescription>
         </CardHeader>
         <CardContent>

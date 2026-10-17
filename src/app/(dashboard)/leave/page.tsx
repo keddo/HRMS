@@ -7,15 +7,20 @@ import { LeaveBalanceCards, type BalanceRow } from "@/components/leave/leave-bal
 import { RequestLeaveDialog } from "@/components/leave/request-leave-dialog";
 import { MyRequestsTable, type MyLeaveRequest } from "@/components/leave/my-requests-table";
 import { ApprovalsTable, type PendingLeaveRequest } from "@/components/leave/approvals-table";
+import { LeaveTypesPanel } from "@/components/leave/leave-types-panel";
 
 export default async function LeavePage() {
   const session = await auth();
   const employeeId = session?.user.employeeId;
   const year = new Date().getFullYear();
   const canApprove = isManagerOrAbove(session?.user.role);
+  const canManageLeaveTypes = isAdmin(session?.user.role);
 
   const [leaveTypes, balances, myRequests, pendingRequests, upcomingHolidays] = await Promise.all([
-    prisma.leaveType.findMany({ orderBy: { name: "asc" } }),
+    prisma.leaveType.findMany({
+      include: { _count: { select: { leaveBalances: true, leaveRequests: true } } },
+      orderBy: { name: "asc" },
+    }),
     employeeId
       ? prisma.leaveBalance.findMany({
           where: { employeeId, year },
@@ -108,6 +113,7 @@ export default async function LeavePage() {
               )}
             </TabsTrigger>
           )}
+          {canManageLeaveTypes && <TabsTrigger value="leave-types">Leave Types</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="mine">
@@ -117,6 +123,21 @@ export default async function LeavePage() {
         {canApprove && (
           <TabsContent value="approvals">
             <ApprovalsTable requests={pendingRows} />
+          </TabsContent>
+        )}
+
+        {canManageLeaveTypes && (
+          <TabsContent value="leave-types">
+            <LeaveTypesPanel
+              leaveTypes={leaveTypes.map((lt) => ({
+                id: lt.id,
+                name: lt.name,
+                defaultDaysPerYear: lt.defaultDaysPerYear,
+                isPaid: lt.isPaid,
+                isActive: lt.isActive,
+                usageCount: lt._count.leaveBalances + lt._count.leaveRequests,
+              }))}
+            />
           </TabsContent>
         )}
       </Tabs>

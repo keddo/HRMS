@@ -8,6 +8,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { isAdmin } from "@/lib/rbac";
 import { recordAudit } from "@/lib/audit";
+import { getCompanySettings } from "@/lib/company-settings";
 
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
 
@@ -46,7 +47,7 @@ export async function initiatePasswordReset(userId: string): Promise<string> {
 
 const completeResetSchema = z.object({
   token: z.string().min(1),
-  password: z.string().min(8, "Password must be at least 8 characters."),
+  password: z.string().min(1),
 });
 
 export async function completePasswordReset(formData: FormData) {
@@ -54,6 +55,11 @@ export async function completePasswordReset(formData: FormData) {
     token: formData.get("token"),
     password: formData.get("password"),
   });
+
+  const { minPasswordLength } = await getCompanySettings();
+  if (parsed.password.length < minPasswordLength) {
+    throw new Error(`Password must be at least ${minPasswordLength} characters.`);
+  }
 
   const tokenHash = hashToken(parsed.token);
   const resetToken = await prisma.passwordResetToken.findUnique({ where: { tokenHash } });
@@ -72,7 +78,7 @@ export async function completePasswordReset(formData: FormData) {
 
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1),
-  newPassword: z.string().min(8, "Password must be at least 8 characters."),
+  newPassword: z.string().min(1),
 });
 
 export async function changeOwnPassword(formData: FormData) {
@@ -83,6 +89,11 @@ export async function changeOwnPassword(formData: FormData) {
     currentPassword: formData.get("currentPassword"),
     newPassword: formData.get("newPassword"),
   });
+
+  const { minPasswordLength } = await getCompanySettings();
+  if (parsed.newPassword.length < minPasswordLength) {
+    throw new Error(`Password must be at least ${minPasswordLength} characters.`);
+  }
 
   const user = await prisma.user.findUniqueOrThrow({ where: { id: session.user.id } });
   const valid = await bcrypt.compare(parsed.currentPassword, user.passwordHash);

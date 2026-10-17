@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { getCompanySettings } from "@/lib/company-settings";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 
@@ -8,16 +9,20 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const notifications = await prisma.notification.findMany({
-    where: { userId: session.user.id },
-    orderBy: { createdAt: "desc" },
-    take: 20,
-  });
+  const [notifications, companySettings] = await Promise.all([
+    prisma.notification.findMany({
+      where: { userId: session.user.id },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+    }),
+    getCompanySettings(),
+  ]);
+  const logoSrc = companySettings.logoUrl ? "/api/company-logo" : "/logo.png";
 
   return (
     <div className="flex h-screen w-full overflow-hidden print:block print:h-auto print:overflow-visible">
       <div className="print:hidden">
-        <Sidebar role={session.user.role} />
+        <Sidebar role={session.user.role} companyName={companySettings.companyName} logoSrc={logoSrc} />
       </div>
       <div className="flex min-w-0 flex-1 flex-col print:block">
         <div className="print:hidden">
@@ -25,6 +30,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
             name={session.user.name ?? session.user.email ?? "User"}
             email={session.user.email ?? ""}
             role={session.user.role}
+            companyName={companySettings.companyName}
+            logoSrc={logoSrc}
             notifications={notifications.map((n) => ({
               id: n.id,
               title: n.title,

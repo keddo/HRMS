@@ -20,7 +20,7 @@ import {
   createLeaveType,
   updateLeaveType,
   setLeaveTypeActive,
-} from "@/app/(dashboard)/settings/actions";
+} from "@/app/(dashboard)/leave/actions";
 
 type LeaveTypeRow = {
   id: string;

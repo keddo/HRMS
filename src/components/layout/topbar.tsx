@@ -31,11 +31,15 @@ export function Topbar({
   name,
   email,
   role,
+  companyName,
+  logoSrc,
   notifications,
 }: {
   name: string;
   email: string;
   role: Role;
+  companyName: string;
+  logoSrc: string;
   notifications: NotificationItem[];
 }) {
   const initials = name
@@ -56,8 +60,8 @@ export function Topbar({
           </SheetTrigger>
           <SheetContent side="left" className="w-64 bg-sidebar p-0 text-sidebar-foreground">
             <SheetTitle className="flex h-16 items-center gap-2 px-6">
-              <Image src="/logo.png" alt="" width={24} height={24} className="rounded-full" />
-              HRMS
+              <Image src={logoSrc} alt="" width={24} height={24} className="rounded-full" />
+              {companyName}
             </SheetTitle>
             <div className="py-2">
               <SidebarNav role={role} />
@@ -65,8 +69,8 @@ export function Topbar({
           </SheetContent>
         </Sheet>
         <Link href="/dashboard" className="flex items-center gap-2 font-semibold md:hidden">
-          <Image src="/logo.png" alt="" width={22} height={22} className="rounded-full" />
-          HRMS
+          <Image src={logoSrc} alt="" width={22} height={22} className="rounded-full" />
+          {companyName}
         </Link>
       </div>
 

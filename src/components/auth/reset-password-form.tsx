@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { completePasswordReset } from "@/app/(dashboard)/account/actions";
 
-export function ResetPasswordForm() {
+export function ResetPasswordForm({ minPasswordLength }: { minPasswordLength: number }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token") ?? "";
@@ -55,11 +55,23 @@ export function ResetPasswordForm() {
             <form action={handleSubmit} className="flex flex-col gap-4">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="password">New Password</Label>
-                <Input id="password" name="password" type="password" minLength={8} required />
+                <Input
+                  id="password"
+                  name="password"
+                  type="password"
+                  minLength={minPasswordLength}
+                  required
+                />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                <Input id="confirmPassword" name="confirmPassword" type="password" minLength={8} required />
+                <Input
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type="password"
+                  minLength={minPasswordLength}
+                  required
+                />
               </div>
               {error && <p className="text-sm text-destructive">{error}</p>}
               <Button type="submit" disabled={isPending}>

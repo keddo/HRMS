@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { canApproveFor } from "@/lib/rbac";
+import { canApproveFor, isAdmin } from "@/lib/rbac";
 import { countWeekdays } from "@/lib/dates";
 import { assertEmployeeExists, assertUserExists } from "@/lib/session";
 import { notifyUser } from "@/lib/notify";
@@ -76,6 +76,91 @@ export async function requestLeave(formData: FormData) {
       link: "/leave",
     });
   }
+
+  revalidatePath("/leave");
+}
+
+// ---------- Leave Types (admin) ----------
+
+async function requireAdmin() {
+  const session = await auth();
+  if (!isAdmin(session?.user.role)) {
+    throw new Error("You do not have permission to manage leave types.");
+  }
+  return session!;
+}
+
+const leaveTypeSchema = z.object({
+  name: z.string().min(1),
+  defaultDaysPerYear: z.coerce.number().int().min(0),
+  isPaid: z.coerce.boolean(),
+});
+
+export async function createLeaveType(formData: FormData) {
+  const session = await requireAdmin();
+  const parsed = leaveTypeSchema.parse({
+    name: formData.get("name"),
+    defaultDaysPerYear: formData.get("defaultDaysPerYear"),
+    isPaid: formData.get("isPaid") === "on",
+  });
+
+  const existing = await prisma.leaveType.findUnique({ where: { name: parsed.name } });
+  if (existing) throw new Error("A leave type with this name already exists.");
+
+  const leaveType = await prisma.leaveType.create({ data: parsed });
+
+  await recordAudit({
+    actorId: session.user.id,
+    action: "CREATE",
+    entityType: "LeaveType",
+    entityId: leaveType.id,
+    summary: `Created leave type ${leaveType.name}`,
+  });
+
+  revalidatePath("/leave");
+}
+
+export async function updateLeaveType(id: string, formData: FormData) {
+  const session = await requireAdmin();
+  const parsed = leaveTypeSchema.parse({
+    name: formData.get("name"),
+    defaultDaysPerYear: formData.get("defaultDaysPerYear"),
+    isPaid: formData.get("isPaid") === "on",
+  });
+
+  const existing = await prisma.leaveType.findUnique({ where: { name: parsed.name } });
+  if (existing && existing.id !== id) {
+    throw new Error("A leave type with this name already exists.");
+  }
+
+  await prisma.leaveType.update({ where: { id }, data: parsed });
+
+  await recordAudit({
+    actorId: session.user.id,
+    action: "UPDATE",
+    entityType: "LeaveType",
+    entityId: id,
+    summary: `Updated leave type ${parsed.name}`,
+  });
+
+  revalidatePath("/leave");
+}
+
+export async function setLeaveTypeActive(id: string, isActive: boolean) {
+  const session = await requireAdmin();
+
+  const leaveType = await prisma.leaveType.findUnique({ where: { id } });
+  if (!leaveType) throw new Error("Leave type not found.");
+
+  await prisma.leaveType.update({ where: { id }, data: { isActive } });
+
+  await recordAudit({
+    actorId: session.user.id,
+    action: "UPDATE",
+    entityType: "LeaveType",
+    entityId: id,
+    summary: `${isActive ? "Reactivated" : "Deactivated"} leave type ${leaveType.name}`,
+  });
 
   revalidatePath("/leave");
 }

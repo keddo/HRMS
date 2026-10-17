@@ -6,6 +6,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { isAdmin } from "@/lib/rbac";
 import { recordAudit } from "@/lib/audit";
+import { uploadCompanyLogoBlob } from "@/lib/blob-storage";
 
 async function requireAdmin() {
   const session = await auth();
@@ -15,84 +16,75 @@ async function requireAdmin() {
   return session!;
 }
 
-// ---------- Leave Types ----------
+// ---------- Company Profile ----------
 
-const leaveTypeSchema = z.object({
-  name: z.string().min(1),
-  defaultDaysPerYear: z.coerce.number().int().min(0),
-  isPaid: z.coerce.boolean(),
+const MAX_LOGO_SIZE = 5 * 1024 * 1024; // 5MB
+const ALLOWED_LOGO_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
+
+const companyProfileSchema = z.object({
+  companyName: z.string().min(1),
 });
 
-export async function createLeaveType(formData: FormData) {
+export async function updateCompanyProfile(formData: FormData) {
   const session = await requireAdmin();
-  const parsed = leaveTypeSchema.parse({
-    name: formData.get("name"),
-    defaultDaysPerYear: formData.get("defaultDaysPerYear"),
-    isPaid: formData.get("isPaid") === "on",
-  });
+  const parsed = companyProfileSchema.parse({ companyName: formData.get("companyName") });
 
-  const existing = await prisma.leaveType.findUnique({ where: { name: parsed.name } });
-  if (existing) throw new Error("A leave type with this name already exists.");
-
-  const leaveType = await prisma.leaveType.create({ data: parsed });
-
-  await recordAudit({
-    actorId: session.user.id,
-    action: "CREATE",
-    entityType: "LeaveType",
-    entityId: leaveType.id,
-    summary: `Created leave type ${leaveType.name}`,
-  });
-
-  revalidatePath("/settings");
-  revalidatePath("/leave");
-}
-
-export async function updateLeaveType(id: string, formData: FormData) {
-  const session = await requireAdmin();
-  const parsed = leaveTypeSchema.parse({
-    name: formData.get("name"),
-    defaultDaysPerYear: formData.get("defaultDaysPerYear"),
-    isPaid: formData.get("isPaid") === "on",
-  });
-
-  const existing = await prisma.leaveType.findUnique({ where: { name: parsed.name } });
-  if (existing && existing.id !== id) {
-    throw new Error("A leave type with this name already exists.");
+  let logoUrl: string | undefined;
+  const file = formData.get("logo");
+  if (file instanceof File && file.size > 0) {
+    if (file.size > MAX_LOGO_SIZE) throw new Error("Logo image is too large (max 5MB).");
+    if (!ALLOWED_LOGO_TYPES.has(file.type)) {
+      throw new Error("Please upload a PNG, JPEG, or WEBP image.");
+    }
+    const buffer = Buffer.from(await file.arrayBuffer());
+    logoUrl = await uploadCompanyLogoBlob(buffer, file.type);
   }
 
-  await prisma.leaveType.update({ where: { id }, data: parsed });
+  await prisma.companySettings.upsert({
+    where: { id: "singleton" },
+    update: { companyName: parsed.companyName, ...(logoUrl ? { logoUrl } : {}) },
+    create: { id: "singleton", companyName: parsed.companyName, logoUrl },
+  });
 
   await recordAudit({
     actorId: session.user.id,
     action: "UPDATE",
-    entityType: "LeaveType",
-    entityId: id,
-    summary: `Updated leave type ${parsed.name}`,
+    entityType: "CompanySettings",
+    entityId: "singleton",
+    summary: "Updated company profile",
   });
 
   revalidatePath("/settings");
-  revalidatePath("/leave");
+  revalidatePath("/", "layout");
 }
 
-export async function setLeaveTypeActive(id: string, isActive: boolean) {
+// ---------- Security ----------
+
+const securitySettingsSchema = z.object({
+  minPasswordLength: z.coerce.number().int().min(6).max(64),
+});
+
+export async function updateSecuritySettings(formData: FormData) {
   const session = await requireAdmin();
+  const parsed = securitySettingsSchema.parse({
+    minPasswordLength: formData.get("minPasswordLength"),
+  });
 
-  const leaveType = await prisma.leaveType.findUnique({ where: { id } });
-  if (!leaveType) throw new Error("Leave type not found.");
-
-  await prisma.leaveType.update({ where: { id }, data: { isActive } });
+  await prisma.companySettings.upsert({
+    where: { id: "singleton" },
+    update: { minPasswordLength: parsed.minPasswordLength },
+    create: { id: "singleton", minPasswordLength: parsed.minPasswordLength },
+  });
 
   await recordAudit({
     actorId: session.user.id,
     action: "UPDATE",
-    entityType: "LeaveType",
-    entityId: id,
-    summary: `${isActive ? "Reactivated" : "Deactivated"} leave type ${leaveType.name}`,
+    entityType: "CompanySettings",
+    entityId: "singleton",
+    summary: `Set minimum password length to ${parsed.minPasswordLength}`,
   });
 
   revalidatePath("/settings");
-  revalidatePath("/leave");
 }
 
 // ---------- Holidays ----------

@@ -39,3 +39,17 @@ export async function uploadAvatarBlob(
 export async function readAvatarBlob(pathname: string) {
   return get(pathname, { access: "private" });
 }
+
+/** Uploads the company logo to the private Blob store. Returns the pathname to store in the DB. */
+export async function uploadCompanyLogoBlob(buffer: Buffer, contentType: string): Promise<string> {
+  const ext = contentType === "image/png" ? "png" : contentType === "image/webp" ? "webp" : "jpg";
+  // Fixed pathname so re-uploading overwrites the old logo instead of accumulating orphans.
+  const pathname = `company/logo.${ext}`;
+  const blob = await put(pathname, buffer, { access: "private", contentType, allowOverwrite: true });
+  return blob.pathname;
+}
+
+/** Streams the company logo back from the private Blob store, or null if it's missing. */
+export async function readCompanyLogoBlob(pathname: string) {
+  return get(pathname, { access: "private" });
+}

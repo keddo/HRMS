@@ -6,6 +6,19 @@ datasource db {
   provider = "postgresql"
 }
 
+// ---------- System Settings ----------
+
+/**
+ * Single-row table (id is always "singleton") holding company-wide, non-HR-policy settings.
+ */
+model CompanySettings {
+  id                String   @id @default("singleton")
+  companyName       String   @default("HRMS")
+  logoUrl           String?
+  minPasswordLength Int      @default(8)
+  updatedAt         DateTime @updatedAt
+}
+
 // ---------- Enums ----------
 
 enum Role {
