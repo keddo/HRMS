@@ -30,19 +30,21 @@ export function EditEmploymentDialog({
   departments,
   positions,
   managers,
+  workLocations,
   current,
 }: {
   employeeId: string;
   departments: { id: string; name: string }[];
   positions: { id: string; title: string; departmentId: string }[];
   managers: { id: string; firstName: string; lastName: string }[];
+  workLocations: { id: string; name: string }[];
   current: {
     departmentId: string | null;
     positionId: string | null;
     managerId: string | null;
     employmentStatus: string;
     employmentType: string;
-    workLocation: string | null;
+    workLocationId: string | null;
   };
 }) {
   const [open, setOpen] = useState(false);
@@ -51,6 +53,7 @@ export function EditEmploymentDialog({
   const [managerId, setManagerId] = useState(current.managerId ?? "");
   const [status, setStatus] = useState(current.employmentStatus);
   const [employmentType, setEmploymentType] = useState(current.employmentType);
+  const [workLocationId, setWorkLocationId] = useState(current.workLocationId ?? "");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -63,6 +66,7 @@ export function EditEmploymentDialog({
     formData.set("managerId", managerId === "none" ? "" : managerId);
     formData.set("employmentStatus", status);
     formData.set("employmentType", employmentType);
+    formData.set("workLocationId", workLocationId === "none" ? "" : workLocationId);
     startTransition(async () => {
       try {
         await updateEmployment(employeeId, formData);
@@ -165,13 +169,20 @@ export function EditEmploymentDialog({
             </Select>
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="workLocation">Work Location</Label>
-            <Input
-              id="workLocation"
-              name="workLocation"
-              defaultValue={current.workLocation ?? ""}
-              placeholder="e.g. Head Office, Bole Branch"
-            />
+            <Label>Work Location</Label>
+            <Select value={workLocationId || "none"} onValueChange={setWorkLocationId}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="No location" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No location</SelectItem>
+                {workLocations.map((l) => (
+                  <SelectItem key={l.id} value={l.id}>
+                    {l.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="changeReason">Reason (optional)</Label>

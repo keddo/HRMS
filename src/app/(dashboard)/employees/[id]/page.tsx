@@ -56,6 +56,7 @@ export default async function EmployeeProfilePage({
     include: {
       department: true,
       position: true,
+      workLocation: true,
       manager: true,
       reports: { include: { position: true } },
       documents: { orderBy: { uploadedAt: "desc" } },
@@ -72,7 +73,7 @@ export default async function EmployeeProfilePage({
   const canSeeSensitive = canManageEmployee(session?.user.role, session?.user.employeeId, employee.id);
   const admin = isAdmin(session?.user.role);
 
-  const [departments, positions, managers] = await Promise.all([
+  const [departments, positions, managers, workLocations] = await Promise.all([
     prisma.department.findMany({ orderBy: { name: "asc" } }),
     prisma.position.findMany({ orderBy: { title: "asc" } }),
     admin
@@ -82,6 +83,7 @@ export default async function EmployeeProfilePage({
           orderBy: { firstName: "asc" },
         })
       : Promise.resolve([]),
+    prisma.workLocation.findMany({ orderBy: { name: "asc" } }),
   ]);
   const departmentNameById = new Map(departments.map((d) => [d.id, d.name]));
   const positionTitleById = new Map(positions.map((p) => [p.id, p.title]));
@@ -191,13 +193,14 @@ export default async function EmployeeProfilePage({
                   departments={departments}
                   positions={positions}
                   managers={managers}
+                  workLocations={workLocations}
                   current={{
                     departmentId: employee.departmentId,
                     positionId: employee.positionId,
                     managerId: employee.managerId,
                     employmentStatus: employee.employmentStatus,
                     employmentType: employee.employmentType,
-                    workLocation: employee.workLocation,
+                    workLocationId: employee.workLocationId,
                   }}
                 />
               )}
@@ -214,7 +217,7 @@ export default async function EmployeeProfilePage({
               />
               <Row label="Hire Date" value={employee.hireDate.toLocaleDateString()} />
               <Row label="Employment Type" value={employee.employmentType.replace("_", " ")} />
-              <Row label="Work Location" value={employee.workLocation ?? "—"} />
+              <Row label="Work Location" value={employee.workLocation?.name ?? "—"} />
             </CardContent>
           </Card>
 

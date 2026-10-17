@@ -20,6 +20,7 @@ import { createEmployee } from "@/app/(dashboard)/employees/actions";
 type Department = { id: string; name: string };
 type Position = { id: string; title: string; departmentId: string };
 type ManagerOption = { id: string; firstName: string; lastName: string };
+type WorkLocationOption = { id: string; name: string };
 
 const GENDERS = ["MALE", "FEMALE", "OTHER", "UNSPECIFIED"];
 const MARITAL_STATUSES = ["SINGLE", "MARRIED", "DIVORCED", "WIDOWED", "UNSPECIFIED"];
@@ -35,16 +36,19 @@ export function NewEmployeeForm({
   departments,
   positions,
   managers,
+  workLocations,
 }: {
   departments: Department[];
   positions: Position[];
   managers: ManagerOption[];
+  workLocations: WorkLocationOption[];
 }) {
   const router = useRouter();
   const [departmentId, setDepartmentId] = useState("");
   const [gender, setGender] = useState("UNSPECIFIED");
   const [maritalStatus, setMaritalStatus] = useState("UNSPECIFIED");
   const [employmentType, setEmploymentType] = useState("PERMANENT");
+  const [workLocationId, setWorkLocationId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -56,6 +60,7 @@ export function NewEmployeeForm({
     formData.set("gender", gender);
     formData.set("maritalStatus", maritalStatus);
     formData.set("employmentType", employmentType);
+    formData.set("workLocationId", workLocationId);
     startTransition(async () => {
       try {
         const id = await createEmployee(formData);
@@ -251,8 +256,19 @@ export function NewEmployeeForm({
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="workLocation">Work Location</Label>
-            <Input id="workLocation" name="workLocation" placeholder="e.g. Head Office, Bole Branch" />
+            <Label>Work Location</Label>
+            <Select value={workLocationId} onValueChange={setWorkLocationId}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder={workLocations.length ? "Select a location" : "No locations set up yet"} />
+              </SelectTrigger>
+              <SelectContent>
+                {workLocations.map((l) => (
+                  <SelectItem key={l.id} value={l.id}>
+                    {l.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="flex flex-col gap-1.5">
             <Label>Employment Type</Label>

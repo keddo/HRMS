@@ -9,7 +9,7 @@ export default async function NewEmployeePage() {
   const session = await auth();
   if (!isAdmin(session?.user.role)) redirect("/employees");
 
-  const [departments, positions, managers] = await Promise.all([
+  const [departments, positions, managers, workLocations] = await Promise.all([
     prisma.department.findMany({ orderBy: { name: "asc" } }),
     prisma.position.findMany({ orderBy: { title: "asc" } }),
     prisma.employee.findMany({
@@ -17,6 +17,7 @@ export default async function NewEmployeePage() {
       select: { id: true, firstName: true, lastName: true },
       orderBy: { firstName: "asc" },
     }),
+    prisma.workLocation.findMany({ orderBy: { name: "asc" } }),
   ]);
 
   return (
@@ -30,7 +31,12 @@ export default async function NewEmployeePage() {
           <CardTitle className="text-base">Employee Details</CardTitle>
         </CardHeader>
         <CardContent>
-          <NewEmployeeForm departments={departments} positions={positions} managers={managers} />
+          <NewEmployeeForm
+            departments={departments}
+            positions={positions}
+            managers={managers}
+            workLocations={workLocations}
+          />
         </CardContent>
       </Card>
     </div>

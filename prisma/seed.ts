@@ -29,6 +29,8 @@ const DEPARTMENTS: { name: string; positions: string[] }[] = [
   { name: "Customer Support", positions: ["Support Agent", "Support Team Lead"] },
 ];
 
+const WORK_LOCATIONS = ["Head Office", "Bole Branch", "Piassa Branch", "Remote"];
+
 const LEAVE_TYPES = [
   { name: "Annual Leave", defaultDaysPerYear: 20, isPaid: true },
   { name: "Sick Leave", defaultDaysPerYear: 10, isPaid: true },
@@ -76,7 +78,7 @@ async function main() {
       "EmployeeSalaryComponent", "EmployeeSalary", "PayComponent",
       "LeaveRequest", "LeaveBalance", "Attendance", "Document", "Announcement",
       "EmploymentHistory", "SalaryHistory",
-      "User", "Employee", "Position", "Department", "LeaveType", "Holiday"
+      "User", "Employee", "Position", "Department", "WorkLocation", "LeaveType", "Holiday"
     CASCADE
   `);
 
@@ -118,6 +120,7 @@ async function main() {
   }
   await prisma.department.createMany({ data: departmentRows });
   await prisma.position.createMany({ data: positionRows });
+  await prisma.workLocation.createMany({ data: WORK_LOCATIONS.map((name) => ({ name })) });
 
   const hireRangeStart = new Date("2016-01-01");
   const hireRangeEnd = new Date("2026-09-01");

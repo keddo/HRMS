@@ -86,7 +86,7 @@ const createEmployeeSchema = z
     departmentId: z.string().min(1),
     positionId: z.string().optional(),
     managerId: z.string().optional(),
-    workLocation: z.string().optional(),
+    workLocationId: z.string().optional(),
     employmentType: z.enum(["PERMANENT", "CONTRACT", "INTERN", "PART_TIME"]).optional(),
     emergencyContactName: z.string().optional(),
     emergencyContactPhone: z.string().optional(),
@@ -165,7 +165,7 @@ export async function createEmployee(formData: FormData) {
     departmentId: formData.get("departmentId"),
     positionId: formData.get("positionId") || undefined,
     managerId: formData.get("managerId") || undefined,
-    workLocation: formData.get("workLocation") || undefined,
+    workLocationId: formData.get("workLocationId") || undefined,
     employmentType: formData.get("employmentType") || undefined,
     emergencyContactName: formData.get("emergencyContactName") || undefined,
     emergencyContactPhone: formData.get("emergencyContactPhone") || undefined,
@@ -203,7 +203,7 @@ export async function createEmployee(formData: FormData) {
       departmentId: parsed.departmentId,
       positionId: parsed.positionId || null,
       managerId: parsed.managerId || null,
-      workLocation: parsed.workLocation || null,
+      workLocationId: parsed.workLocationId || null,
       employmentType: parsed.employmentType,
       emergencyContactName: parsed.emergencyContactName || null,
       emergencyContactPhone: parsed.emergencyContactPhone || null,
@@ -280,7 +280,7 @@ const updateEmploymentSchema = z.object({
   managerId: z.string().optional(),
   employmentStatus: z.enum(["ACTIVE", "ON_LEAVE", "SUSPENDED", "TERMINATED"]),
   employmentType: z.enum(["PERMANENT", "CONTRACT", "INTERN", "PART_TIME"]).optional(),
-  workLocation: z.string().optional(),
+  workLocationId: z.string().optional(),
   changeReason: z.string().optional(),
 });
 
@@ -296,7 +296,7 @@ export async function updateEmployment(employeeId: string, formData: FormData) {
     managerId: formData.get("managerId") || undefined,
     employmentStatus: formData.get("employmentStatus"),
     employmentType: formData.get("employmentType") || undefined,
-    workLocation: formData.get("workLocation") || undefined,
+    workLocationId: formData.get("workLocationId") || undefined,
     changeReason: formData.get("changeReason") || undefined,
   });
 
@@ -312,7 +312,7 @@ export async function updateEmployment(employeeId: string, formData: FormData) {
       managerId: parsed.managerId || null,
       employmentStatus: parsed.employmentStatus,
       employmentType: parsed.employmentType,
-      workLocation: parsed.workLocation || null,
+      workLocationId: parsed.workLocationId || null,
       terminationDate: parsed.employmentStatus === "TERMINATED" ? new Date() : null,
     },
   });
