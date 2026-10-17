@@ -223,7 +223,7 @@ export async function createEmployee(formData: FormData) {
   });
 
   if (parsed.basicSalary) {
-    const payComponents = await prisma.payComponent.findMany();
+    const payComponents = await prisma.payComponent.findMany({ where: { isActive: true } });
     await prisma.$transaction(async (tx) => {
       const salary = await tx.employeeSalary.create({
         data: { employeeId: employee.id, basicSalary: parsed.basicSalary!, currency: "ETB" },

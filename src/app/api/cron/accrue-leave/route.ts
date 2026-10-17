@@ -21,7 +21,9 @@ async function handleAccrual(req: Request) {
   const year = new Date().getFullYear();
   const [employees, leaveTypes] = await Promise.all([
     prisma.employee.findMany({ where: { employmentStatus: "ACTIVE" }, select: { id: true } }),
-    prisma.leaveType.findMany({ where: { isPaid: true, defaultDaysPerYear: { gt: 0 } } }),
+    prisma.leaveType.findMany({
+      where: { isPaid: true, defaultDaysPerYear: { gt: 0 }, isActive: true },
+    }),
   ]);
 
   let updated = 0;

@@ -46,15 +46,19 @@ export default async function LeavePage() {
     }),
   ]);
 
-  const balanceRows: BalanceRow[] = leaveTypes.map((lt) => {
-    const b = balances.find((bal) => bal.leaveTypeId === lt.id);
-    return {
-      leaveTypeId: lt.id,
-      leaveTypeName: lt.name,
-      allocatedDays: b?.allocatedDays ?? lt.defaultDaysPerYear,
-      usedDays: b?.usedDays ?? 0,
-    };
-  });
+  const requestableLeaveTypes = leaveTypes.filter((lt) => lt.isActive);
+
+  const balanceRows: BalanceRow[] = leaveTypes
+    .filter((lt) => lt.isActive || balances.some((bal) => bal.leaveTypeId === lt.id))
+    .map((lt) => {
+      const b = balances.find((bal) => bal.leaveTypeId === lt.id);
+      return {
+        leaveTypeId: lt.id,
+        leaveTypeName: lt.name,
+        allocatedDays: b?.allocatedDays ?? lt.defaultDaysPerYear,
+        usedDays: b?.usedDays ?? 0,
+      };
+    });
 
   const myRequestRows: MyLeaveRequest[] = myRequests.map((r) => ({
     id: r.id,
@@ -86,7 +90,7 @@ export default async function LeavePage() {
             Manage your time off and review team requests.
           </p>
         </div>
-        {employeeId && <RequestLeaveDialog leaveTypes={leaveTypes} />}
+        {employeeId && <RequestLeaveDialog leaveTypes={requestableLeaveTypes} />}
       </div>
 
       <LeaveBalanceCards balances={balanceRows} />

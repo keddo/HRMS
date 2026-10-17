@@ -26,7 +26,7 @@ export async function setEmployeeSalary(formData: FormData) {
     currency: formData.get("currency") || "ETB",
   });
 
-  const payComponents = await prisma.payComponent.findMany();
+  const payComponents = await prisma.payComponent.findMany({ where: { isActive: true } });
 
   await prisma.$transaction(async (tx) => {
     const salary = await tx.employeeSalary.upsert({

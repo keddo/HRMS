@@ -228,6 +228,7 @@ model LeaveType {
   name               String         @unique
   defaultDaysPerYear Int            @default(0)
   isPaid             Boolean        @default(true)
+  isActive           Boolean        @default(true)
   leaveBalances      LeaveBalance[]
   leaveRequests      LeaveRequest[]
   createdAt          DateTime       @default(now())
@@ -307,6 +308,7 @@ model PayComponent {
   type         PayComponentType
   isPercentage Boolean          @default(false)
   defaultValue Float            @default(0)
+  isActive     Boolean          @default(true)
   createdAt    DateTime         @default(now())
 
   salaryComponents EmployeeSalaryComponent[]
