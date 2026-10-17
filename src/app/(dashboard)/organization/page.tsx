@@ -3,11 +3,11 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { isManagerOrAbove } from "@/lib/rbac";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DepartmentsPanel } from "@/components/settings/departments-panel";
-import { PositionsPanel } from "@/components/settings/positions-panel";
-import { WorkLocationsPanel } from "@/components/settings/work-locations-panel";
+import { DepartmentsPanel } from "@/components/organization/departments-panel";
+import { PositionsPanel } from "@/components/organization/positions-panel";
+import { WorkLocationsPanel } from "@/components/organization/work-locations-panel";
 
-export default async function SettingsPage() {
+export default async function OrganizationPage() {
   const session = await auth();
   if (!isManagerOrAbove(session?.user.role)) redirect("/dashboard");
 
@@ -29,7 +29,7 @@ export default async function SettingsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Organization Settings</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Organization</h1>
         <p className="text-sm text-muted-foreground">
           Manage the departments, positions, and work locations used across employee records.
         </p>

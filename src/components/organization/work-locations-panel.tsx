@@ -14,7 +14,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { createWorkLocation, deleteWorkLocation } from "@/app/(dashboard)/settings/actions";
+import { createWorkLocation, deleteWorkLocation } from "@/app/(dashboard)/organization/actions";
 
 type WorkLocationRow = {
   id: string;

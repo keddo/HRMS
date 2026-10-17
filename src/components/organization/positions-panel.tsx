@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { createPosition, deletePosition } from "@/app/(dashboard)/settings/actions";
+import { createPosition, deletePosition } from "@/app/(dashboard)/organization/actions";
 
 type PositionRow = {
   id: string;

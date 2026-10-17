@@ -42,7 +42,7 @@ export async function createDepartment(formData: FormData) {
     summary: `Created department ${department.name}`,
   });
 
-  revalidatePath("/settings");
+  revalidatePath("/organization");
   revalidatePath("/employees/new");
 }
 
@@ -70,7 +70,7 @@ export async function deleteDepartment(id: string) {
     summary: `Deleted department ${department.name}`,
   });
 
-  revalidatePath("/settings");
+  revalidatePath("/organization");
   revalidatePath("/employees/new");
 }
 
@@ -105,7 +105,7 @@ export async function createPosition(formData: FormData) {
     summary: `Created position ${position.title}`,
   });
 
-  revalidatePath("/settings");
+  revalidatePath("/organization");
   revalidatePath("/employees/new");
 }
 
@@ -131,7 +131,7 @@ export async function deletePosition(id: string) {
     summary: `Deleted position ${position.title}`,
   });
 
-  revalidatePath("/settings");
+  revalidatePath("/organization");
   revalidatePath("/employees/new");
 }
 
@@ -156,7 +156,7 @@ export async function createWorkLocation(formData: FormData) {
     summary: `Created work location ${location.name}`,
   });
 
-  revalidatePath("/settings");
+  revalidatePath("/organization");
   revalidatePath("/employees/new");
 }
 
@@ -182,6 +182,6 @@ export async function deleteWorkLocation(id: string) {
     summary: `Deleted work location ${location.name}`,
   });
 
-  revalidatePath("/settings");
+  revalidatePath("/organization");
   revalidatePath("/employees/new");
 }

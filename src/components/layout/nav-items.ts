@@ -13,7 +13,7 @@ import {
   Megaphone,
   BarChart3,
   ShieldAlert,
-  Settings,
+  Building2,
   type LucideIcon,
 } from "lucide-react";
 import { ADMIN_ROLES, MANAGER_ROLES } from "@/lib/rbac";
@@ -39,7 +39,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Announcements", href: "/announcements", icon: Megaphone },
   { label: "Reports", href: "/reports", icon: BarChart3, roles: ADMIN_ROLES },
   { label: "Audit Log", href: "/audit-log", icon: ShieldAlert, roles: ADMIN_ROLES },
-  { label: "Settings", href: "/settings", icon: Settings, roles: MANAGER_ROLES },
+  { label: "Organization", href: "/organization", icon: Building2, roles: MANAGER_ROLES },
 ];
 
 export const ADD_EMPLOYEE_ROLES = ADMIN_ROLES;

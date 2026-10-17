@@ -15,7 +15,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { createDepartment, deleteDepartment } from "@/app/(dashboard)/settings/actions";
+import { createDepartment, deleteDepartment } from "@/app/(dashboard)/organization/actions";
 
 type DepartmentRow = {
   id: string;
