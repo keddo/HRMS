@@ -33,7 +33,7 @@ export default async function PayslipDetailPage({
   const authorized = canManageEmployee(session?.user.role, session?.user.employeeId, payslip.employeeId);
   if (!authorized) notFound();
 
-  const currency = payslip.employee.salary?.currency ?? "USD";
+  const currency = payslip.employee.salary?.currency ?? "ETB";
   const earnings = payslip.lines.filter((l) => l.type === "EARNING");
   const deductions = payslip.lines.filter((l) => l.type === "DEDUCTION");
 

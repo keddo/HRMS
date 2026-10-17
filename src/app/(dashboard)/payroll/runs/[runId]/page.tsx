@@ -41,7 +41,7 @@ export default async function PayrollRunDetailPage({
   if (!run) notFound();
 
   const totalNet = run.payslips.reduce((sum, p) => sum + p.netPay, 0);
-  const currency = run.payslips[0]?.employee.salary?.currency ?? "USD";
+  const currency = run.payslips[0]?.employee.salary?.currency ?? "ETB";
 
   return (
     <div className="flex flex-col gap-6">

@@ -104,7 +104,7 @@ export default async function ReportsPage() {
     label: `${MONTH_NAMES[r.month - 1]} ${r.year}`,
     value: Math.round(r.payslips.reduce((sum, p) => sum + p.netPay, 0)),
   }));
-  const payrollCurrency = "USD";
+  const payrollCurrency = "ETB";
 
   return (
     <div className="flex flex-col gap-6">

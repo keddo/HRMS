@@ -373,7 +373,7 @@ export default async function EmployeeProfilePage({
             <SalarySummary
               employeeId={employee.id}
               basicSalary={employee.salary?.basicSalary ?? null}
-              currency={employee.salary?.currency ?? "USD"}
+              currency={employee.salary?.currency ?? "ETB"}
               components={
                 employee.salary?.components.map((c) => ({
                   name: c.payComponent.name,

@@ -271,20 +271,29 @@ export function NewEmployeeForm({
           </div>
         </div>
 
-        <div className="flex flex-col gap-1.5">
-          <Label>Manager</Label>
-          <Select name="managerId">
-            <SelectTrigger>
-              <SelectValue placeholder="No manager" />
-            </SelectTrigger>
-            <SelectContent>
-              {managers.map((m) => (
-                <SelectItem key={m.id} value={m.id}>
-                  {m.firstName} {m.lastName}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <Label>Manager</Label>
+            <Select name="managerId">
+              <SelectTrigger>
+                <SelectValue placeholder="No manager" />
+              </SelectTrigger>
+              <SelectContent>
+                {managers.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.firstName} {m.lastName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="basicSalary">Basic Salary (ETB)</Label>
+            <Input id="basicSalary" name="basicSalary" type="number" min="0" step="0.01" />
+            <p className="text-xs text-muted-foreground">
+              Optional. Allowances and deductions are applied automatically based on this.
+            </p>
+          </div>
         </div>
       </section>
 

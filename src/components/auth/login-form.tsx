@@ -6,7 +6,8 @@ import { signIn } from "next-auth/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Building2, Loader2 } from "lucide-react";
+import Image from "next/image";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -53,9 +54,7 @@ export function LoginForm() {
     <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center text-center">
-          <div className="mb-2 flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Building2 className="size-5" />
-          </div>
+          <Image src="/logo.png" alt="" width={48} height={48} className="mb-2 rounded-full" />
           <CardTitle className="text-xl">Sign in to HRMS</CardTitle>
           <CardDescription>Enter your work email and password</CardDescription>
         </CardHeader>

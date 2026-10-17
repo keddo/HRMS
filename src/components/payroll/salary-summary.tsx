@@ -31,7 +31,13 @@ export function SalarySummary({
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="text-base">Salary Structure</CardTitle>
-        {canEdit && <SetSalaryDialog employeeId={employeeId} currentBasicSalary={basicSalary} />}
+        {canEdit && (
+          <SetSalaryDialog
+            employeeId={employeeId}
+            currentBasicSalary={basicSalary}
+            currentCurrency={currency}
+          />
+        )}
       </CardHeader>
       <CardContent>
         {basicSalary === null ? (

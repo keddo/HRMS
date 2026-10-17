@@ -290,7 +290,7 @@ model EmployeeSalary {
   employeeId    String   @unique
   employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   basicSalary   Float
-  currency      String   @default("USD")
+  currency      String   @default("ETB")
   effectiveDate DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

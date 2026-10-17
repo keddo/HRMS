@@ -13,7 +13,7 @@ import { computePayslip, resolveComponentAmount } from "@/lib/payroll-calc";
 const setSalarySchema = z.object({
   employeeId: z.string().min(1),
   basicSalary: z.coerce.number().positive(),
-  currency: z.string().min(1).default("USD"),
+  currency: z.string().min(1).default("ETB"),
 });
 
 export async function setEmployeeSalary(formData: FormData) {
@@ -23,7 +23,7 @@ export async function setEmployeeSalary(formData: FormData) {
   const parsed = setSalarySchema.parse({
     employeeId: formData.get("employeeId"),
     basicSalary: formData.get("basicSalary"),
-    currency: formData.get("currency") || "USD",
+    currency: formData.get("currency") || "ETB",
   });
 
   const payComponents = await prisma.payComponent.findMany();

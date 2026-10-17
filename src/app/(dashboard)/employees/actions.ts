@@ -10,6 +10,7 @@ import { isAdmin, canManageEmployee } from "@/lib/rbac";
 import { uploadDocumentBlob, uploadAvatarBlob } from "@/lib/blob-storage";
 import { encryptField } from "@/lib/crypto";
 import { recordAudit } from "@/lib/audit";
+import { resolveComponentAmount } from "@/lib/payroll-calc";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_TYPES = new Set([
@@ -90,6 +91,7 @@ const createEmployeeSchema = z
     emergencyContactName: z.string().optional(),
     emergencyContactPhone: z.string().optional(),
     emergencyContactRelationship: z.string().optional(),
+    basicSalary: z.coerce.number().positive().optional(),
   })
   .refine(
     (data) => {
@@ -168,6 +170,7 @@ export async function createEmployee(formData: FormData) {
     emergencyContactName: formData.get("emergencyContactName") || undefined,
     emergencyContactPhone: formData.get("emergencyContactPhone") || undefined,
     emergencyContactRelationship: formData.get("emergencyContactRelationship") || undefined,
+    basicSalary: formData.get("basicSalary") || undefined,
   });
 
   const existingEmail = await prisma.employee.findUnique({ where: { email: parsed.email } });
@@ -218,6 +221,29 @@ export async function createEmployee(formData: FormData) {
       employeeId: employee.id,
     },
   });
+
+  if (parsed.basicSalary) {
+    const payComponents = await prisma.payComponent.findMany();
+    await prisma.$transaction(async (tx) => {
+      const salary = await tx.employeeSalary.create({
+        data: { employeeId: employee.id, basicSalary: parsed.basicSalary!, currency: "ETB" },
+      });
+      for (const pc of payComponents) {
+        const amount = resolveComponentAmount(parsed.basicSalary!, pc);
+        await tx.employeeSalaryComponent.create({
+          data: { employeeSalaryId: salary.id, payComponentId: pc.id, amount },
+        });
+      }
+      await tx.salaryHistory.create({
+        data: {
+          employeeId: employee.id,
+          basicSalary: parsed.basicSalary!,
+          currency: "ETB",
+          changedById: session!.user.id,
+        },
+      });
+    });
+  }
 
   await uploadOptionalDocument(employee.id, formData, "nationalIdDocument", "ID_COPY");
   await uploadOptionalDocument(employee.id, formData, "guarantorDocument", "GUARANTOR");

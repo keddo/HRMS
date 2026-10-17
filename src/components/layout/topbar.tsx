@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { signOut } from "next-auth/react";
-import { Building2, KeyRound, LogOut, Menu, User as UserIcon } from "lucide-react";
+import { KeyRound, LogOut, Menu, User as UserIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -55,7 +56,7 @@ export function Topbar({
           </SheetTrigger>
           <SheetContent side="left" className="w-64 bg-sidebar p-0 text-sidebar-foreground">
             <SheetTitle className="flex h-16 items-center gap-2 px-6">
-              <Building2 className="size-5 text-primary" />
+              <Image src="/logo.png" alt="" width={24} height={24} className="rounded-full" />
               HRMS
             </SheetTitle>
             <div className="py-2">
@@ -63,7 +64,8 @@ export function Topbar({
             </div>
           </SheetContent>
         </Sheet>
-        <Link href="/dashboard" className="font-semibold md:hidden">
+        <Link href="/dashboard" className="flex items-center gap-2 font-semibold md:hidden">
+          <Image src="/logo.png" alt="" width={22} height={22} className="rounded-full" />
           HRMS
         </Link>
       </div>

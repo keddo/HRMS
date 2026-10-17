@@ -37,7 +37,7 @@ export default async function PayrollPage() {
       : Promise.resolve(null),
   ]);
 
-  const currency = mySalary?.currency ?? "USD";
+  const currency = mySalary?.currency ?? "ETB";
 
   const myPayslipRows: MyPayslipRow[] = myPayslips.map((p) => ({
     id: p.id,

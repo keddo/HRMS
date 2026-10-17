@@ -18,9 +18,11 @@ import { setEmployeeSalary } from "@/app/(dashboard)/payroll/actions";
 export function SetSalaryDialog({
   employeeId,
   currentBasicSalary,
+  currentCurrency,
 }: {
   employeeId: string;
   currentBasicSalary: number | null;
+  currentCurrency?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +68,7 @@ export function SetSalaryDialog({
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="currency">Currency</Label>
-            <Input id="currency" name="currency" defaultValue="USD" required />
+            <Input id="currency" name="currency" defaultValue={currentCurrency || "ETB"} required />
           </div>
           <p className="text-xs text-muted-foreground">
             Allowances and deductions configured for the company will be applied automatically
