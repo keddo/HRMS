@@ -4,8 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { isAdmin } from "@/lib/rbac";
-import { uploadDocumentBlob } from "@/lib/blob-storage";
+import { isAdmin, canManageEmployee } from "@/lib/rbac";
+import { uploadDocumentBlob, uploadAvatarBlob } from "@/lib/blob-storage";
 import { encryptField } from "@/lib/crypto";
 import { recordAudit } from "@/lib/audit";
 
@@ -234,4 +234,82 @@ export async function updateSensitiveInfo(employeeId: string, formData: FormData
   });
 
   revalidatePath(`/employees/${employeeId}`);
+}
+
+const personalInfoSchema = z.object({
+  phone: z.string().optional(),
+  address: z.string().optional(),
+  dateOfBirth: z.string().optional(),
+  gender: z.enum(["MALE", "FEMALE", "OTHER", "UNSPECIFIED"]).optional(),
+  emergencyContactName: z.string().optional(),
+  emergencyContactPhone: z.string().optional(),
+});
+
+export async function updatePersonalInfo(employeeId: string, formData: FormData) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Not authenticated");
+  if (!canManageEmployee(session.user.role, session.user.employeeId, employeeId)) {
+    throw new Error("You do not have permission to update this profile.");
+  }
+
+  const parsed = personalInfoSchema.parse({
+    phone: formData.get("phone") || undefined,
+    address: formData.get("address") || undefined,
+    dateOfBirth: formData.get("dateOfBirth") || undefined,
+    gender: formData.get("gender") || undefined,
+    emergencyContactName: formData.get("emergencyContactName") || undefined,
+    emergencyContactPhone: formData.get("emergencyContactPhone") || undefined,
+  });
+
+  await prisma.employee.update({
+    where: { id: employeeId },
+    data: {
+      phone: parsed.phone || null,
+      address: parsed.address || null,
+      dateOfBirth: parsed.dateOfBirth ? new Date(parsed.dateOfBirth) : null,
+      gender: parsed.gender,
+      emergencyContactName: parsed.emergencyContactName || null,
+      emergencyContactPhone: parsed.emergencyContactPhone || null,
+    },
+  });
+
+  await recordAudit({
+    actorId: session.user.id,
+    action: "UPDATE",
+    entityType: "Employee",
+    entityId: employeeId,
+    summary: "Updated personal information",
+  });
+
+  revalidatePath(`/employees/${employeeId}`);
+}
+
+const MAX_AVATAR_SIZE = 5 * 1024 * 1024; // 5MB
+const ALLOWED_AVATAR_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
+
+export async function uploadAvatar(employeeId: string, formData: FormData) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Not authenticated");
+  if (!canManageEmployee(session.user.role, session.user.employeeId, employeeId)) {
+    throw new Error("You do not have permission to update this profile photo.");
+  }
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    throw new Error("Please choose an image to upload.");
+  }
+  if (file.size > MAX_AVATAR_SIZE) {
+    throw new Error("Image is too large (max 5MB).");
+  }
+  if (!ALLOWED_AVATAR_TYPES.has(file.type)) {
+    throw new Error("Please upload a PNG, JPEG, or WEBP image.");
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const pathname = await uploadAvatarBlob(employeeId, buffer, file.type);
+
+  await prisma.employee.update({ where: { id: employeeId }, data: { avatarUrl: pathname } });
+
+  revalidatePath(`/employees/${employeeId}`);
+  revalidatePath("/employees");
 }

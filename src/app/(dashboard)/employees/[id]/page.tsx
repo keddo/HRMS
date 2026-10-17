@@ -5,7 +5,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { canManageEmployee, isAdmin } from "@/lib/rbac";
 import { decryptField } from "@/lib/crypto";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -14,7 +14,9 @@ import { SalarySummary } from "@/components/payroll/salary-summary";
 import { SalaryHistoryList } from "@/components/payroll/salary-history-list";
 import { EditEmploymentDialog } from "@/components/employees/edit-employment-dialog";
 import { EditSensitiveInfoDialog } from "@/components/employees/edit-sensitive-info-dialog";
+import { EditPersonalInfoDialog } from "@/components/employees/edit-personal-info-dialog";
 import { ResetPasswordDialog } from "@/components/employees/reset-password-dialog";
+import { AvatarUpload } from "@/components/employees/avatar-upload";
 
 function maskSecret(decrypted: string | null): string {
   if (!decrypted) return "—";
@@ -23,6 +25,22 @@ function maskSecret(decrypted: string | null): string {
 
 function initials(first: string, last: string) {
   return `${first[0] ?? ""}${last[0] ?? ""}`.toUpperCase();
+}
+
+function formatTenure(hireDate: Date): string {
+  const now = new Date();
+  let years = now.getFullYear() - hireDate.getFullYear();
+  let months = now.getMonth() - hireDate.getMonth();
+  if (now.getDate() < hireDate.getDate()) months -= 1;
+  if (months < 0) {
+    years -= 1;
+    months += 12;
+  }
+  if (years <= 0 && months <= 0) return "Just started";
+  const parts = [];
+  if (years > 0) parts.push(`${years} yr${years === 1 ? "" : "s"}`);
+  if (months > 0) parts.push(`${months} mo${months === 1 ? "" : "s"}`);
+  return parts.join(" ");
 }
 
 export default async function EmployeeProfilePage({
@@ -73,11 +91,12 @@ export default async function EmployeeProfilePage({
       <Card>
         <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
-            <Avatar className="size-16">
-              <AvatarFallback className="text-lg">
-                {initials(employee.firstName, employee.lastName)}
-              </AvatarFallback>
-            </Avatar>
+            <AvatarUpload
+              employeeId={employee.id}
+              avatarSrc={employee.avatarUrl ? `/api/avatars/${employee.id}` : null}
+              initials={initials(employee.firstName, employee.lastName)}
+              canEdit={canSeeSensitive}
+            />
             <div>
               <h1 className="text-xl font-semibold">
                 {employee.firstName} {employee.lastName}
@@ -90,6 +109,9 @@ export default async function EmployeeProfilePage({
                   {employee.employmentStatus.replace("_", " ")}
                 </Badge>
                 <span className="text-xs text-muted-foreground">{employee.employeeCode}</span>
+                <span className="text-xs text-muted-foreground">
+                  · {formatTenure(employee.hireDate)} tenure
+                </span>
               </div>
             </div>
           </div>
@@ -125,8 +147,21 @@ export default async function EmployeeProfilePage({
 
         <TabsContent value="overview" className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-base">Personal Information</CardTitle>
+              {canSeeSensitive && (
+                <EditPersonalInfoDialog
+                  employeeId={employee.id}
+                  current={{
+                    phone: employee.phone,
+                    address: employee.address,
+                    dateOfBirth: employee.dateOfBirth?.toISOString().slice(0, 10) ?? null,
+                    gender: employee.gender,
+                    emergencyContactName: employee.emergencyContactName,
+                    emergencyContactPhone: employee.emergencyContactPhone,
+                  }}
+                />
+              )}
             </CardHeader>
             <CardContent className="flex flex-col gap-2 text-sm">
               <Row label="Gender" value={employee.gender.replace("_", " ")} />
@@ -206,6 +241,9 @@ export default async function EmployeeProfilePage({
                   className="flex items-center gap-3 rounded-md p-2 text-sm hover:bg-muted"
                 >
                   <Avatar className="size-8">
+                    {employee.manager.avatarUrl && (
+                      <AvatarImage src={`/api/avatars/${employee.manager.id}`} alt="" />
+                    )}
                     <AvatarFallback>
                       {initials(employee.manager.firstName, employee.manager.lastName)}
                     </AvatarFallback>
@@ -234,6 +272,9 @@ export default async function EmployeeProfilePage({
                 >
                   <span className="flex items-center gap-3">
                     <Avatar className="size-8">
+                      {report.avatarUrl && (
+                        <AvatarImage src={`/api/avatars/${report.id}`} alt="" />
+                      )}
                       <AvatarFallback>{initials(report.firstName, report.lastName)}</AvatarFallback>
                     </Avatar>
                     {report.firstName} {report.lastName}

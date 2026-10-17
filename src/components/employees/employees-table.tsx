@@ -14,7 +14,7 @@ import { ArrowUpDown, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Select,
   SelectContent,
@@ -41,6 +41,7 @@ export type EmployeeRow = {
   positionTitle: string | null;
   employmentStatus: string;
   hireDate: string;
+  avatarUrl: string | null;
 };
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -49,6 +50,8 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
   SUSPENDED: "outline",
   TERMINATED: "destructive",
 };
+
+const STATUS_OPTIONS = ["ACTIVE", "ON_LEAVE", "SUSPENDED", "TERMINATED"];
 
 function initials(first: string, last: string) {
   return `${first[0] ?? ""}${last[0] ?? ""}`.toUpperCase();
@@ -63,6 +66,7 @@ export function EmployeesTable({
 }) {
   const [search, setSearch] = useState("");
   const [department, setDepartment] = useState<string>("all");
+  const [status, setStatus] = useState<string>("ACTIVE");
   const [sorting, setSorting] = useState<SortingState>([{ id: "firstName", desc: false }]);
 
   const filtered = useMemo(() => {
@@ -70,6 +74,8 @@ export function EmployeesTable({
     return data.filter((emp) => {
       const matchesDept = department === "all" || emp.departmentName === department;
       if (!matchesDept) return false;
+      const matchesStatus = status === "all" || emp.employmentStatus === status;
+      if (!matchesStatus) return false;
       if (!q) return true;
       return (
         `${emp.firstName} ${emp.lastName}`.toLowerCase().includes(q) ||
@@ -77,7 +83,7 @@ export function EmployeesTable({
         emp.employeeCode.toLowerCase().includes(q)
       );
     });
-  }, [data, search, department]);
+  }, [data, search, department, status]);
 
   const columns = useMemo<ColumnDef<EmployeeRow>[]>(
     () => [
@@ -98,6 +104,7 @@ export function EmployeesTable({
           return (
             <Link href={`/employees/${emp.id}`} className="flex items-center gap-3">
               <Avatar className="size-8">
+                {emp.avatarUrl && <AvatarImage src={`/api/avatars/${emp.id}`} alt="" />}
                 <AvatarFallback>{initials(emp.firstName, emp.lastName)}</AvatarFallback>
               </Avatar>
               <div>
@@ -181,6 +188,19 @@ export function EmployeesTable({
             {departments.map((d) => (
               <SelectItem key={d} value={d}>
                 {d}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={status} onValueChange={setStatus}>
+          <SelectTrigger className="w-full sm:w-44">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            {STATUS_OPTIONS.map((s) => (
+              <SelectItem key={s} value={s}>
+                {s.replace("_", " ")}
               </SelectItem>
             ))}
           </SelectContent>

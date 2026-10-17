@@ -1,9 +1,15 @@
 import "dotenv/config";
-import { PrismaClient, Role, Gender, EmploymentStatus } from "@prisma/client";
+import { PrismaClient, Role, Gender, EmploymentStatus, type Prisma } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
+// keepAlive prevents Neon's pooler from silently dropping the connection during
+// this script's many sequential round trips; a bare connectionString doesn't set it.
+const adapter = new PrismaPg({
+  connectionString: process.env.DATABASE_URL!,
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 5000,
+});
 const prisma = new PrismaClient({ adapter, transactionOptions: { maxWait: 10000, timeout: 60000 } });
 
 const DEPARTMENTS: { name: string; positions: string[] }[] = [
@@ -55,41 +61,24 @@ async function main() {
 
   const passwordHash = await bcrypt.hash("Password123!", 10);
 
-  // Reset all app data so this script can be re-run idempotently
-  await prisma.$transaction([
-    prisma.auditLog.deleteMany(),
-    prisma.passwordResetToken.deleteMany(),
-    prisma.asset.deleteMany(),
-    prisma.employeeChecklistItem.deleteMany(),
-    prisma.employeeChecklist.deleteMany(),
-    prisma.checklistTemplateItem.deleteMany(),
-    prisma.checklistTemplate.deleteMany(),
-    prisma.interview.deleteMany(),
-    prisma.offer.deleteMany(),
-    prisma.application.deleteMany(),
-    prisma.jobRequisition.deleteMany(),
-    prisma.candidate.deleteMany(),
-    prisma.performanceReview.deleteMany(),
-    prisma.reviewCycle.deleteMany(),
-    prisma.goal.deleteMany(),
-    prisma.payslipLine.deleteMany(),
-    prisma.payslip.deleteMany(),
-    prisma.payrollRun.deleteMany(),
-    prisma.employeeSalaryComponent.deleteMany(),
-    prisma.employeeSalary.deleteMany(),
-    prisma.payComponent.deleteMany(),
-    prisma.leaveRequest.deleteMany(),
-    prisma.leaveBalance.deleteMany(),
-    prisma.attendance.deleteMany(),
-    prisma.document.deleteMany(),
-    prisma.announcement.deleteMany(),
-    prisma.user.deleteMany(),
-    prisma.employee.deleteMany(),
-    prisma.position.deleteMany(),
-    prisma.department.deleteMany(),
-    prisma.leaveType.deleteMany(),
-    prisma.holiday.deleteMany(),
-  ]);
+  // Reset all app data so this script can be re-run idempotently. A single TRUNCATE
+  // is one round trip and doesn't hold a transaction open across dozens of deletes,
+  // which was timing out against a remote database (see git history for the longer
+  // $transaction([...deleteMany]) version this replaced).
+  await prisma.$executeRawUnsafe(`
+    TRUNCATE TABLE
+      "AuditLog", "PasswordResetToken", "LoginAttempt", "Notification",
+      "Asset", "EmployeeChecklistItem", "EmployeeChecklist",
+      "ChecklistTemplateItem", "ChecklistTemplate",
+      "Interview", "Offer", "Application", "JobRequisition", "Candidate",
+      "PerformanceReview", "ReviewCycle", "Goal",
+      "PayslipLine", "Payslip", "PayrollRun",
+      "EmployeeSalaryComponent", "EmployeeSalary", "PayComponent",
+      "LeaveRequest", "LeaveBalance", "Attendance", "Document", "Announcement",
+      "EmploymentHistory", "SalaryHistory",
+      "User", "Employee", "Position", "Department", "LeaveType", "Holiday"
+    CASCADE
+  `);
 
   const payComponents = await Promise.all([
     prisma.payComponent.create({
@@ -110,62 +99,67 @@ async function main() {
     await prisma.leaveType.create({ data: lt });
   }
 
+  // Departments and positions: IDs are generated client-side so both can be batched
+  // into two createMany calls instead of ~35 sequential round trips.
   const departmentMap: Record<string, { id: string; positionIds: Record<string, string> }> = {};
+  const departmentRows: { id: string; name: string }[] = [];
+  const positionRows: { id: string; title: string; departmentId: string }[] = [];
 
   for (const dept of DEPARTMENTS) {
-    const created = await prisma.department.create({
-      data: { name: dept.name },
-    });
+    const deptId = crypto.randomUUID();
     const positionIds: Record<string, string> = {};
+    departmentRows.push({ id: deptId, name: dept.name });
     for (const title of dept.positions) {
-      const pos = await prisma.position.create({
-        data: { title, departmentId: created.id },
-      });
-      positionIds[title] = pos.id;
+      const posId = crypto.randomUUID();
+      positionIds[title] = posId;
+      positionRows.push({ id: posId, title, departmentId: deptId });
     }
-    departmentMap[dept.name] = { id: created.id, positionIds };
+    departmentMap[dept.name] = { id: deptId, positionIds };
   }
+  await prisma.department.createMany({ data: departmentRows });
+  await prisma.position.createMany({ data: positionRows });
 
   const hireRangeStart = new Date("2016-01-01");
   const hireRangeEnd = new Date("2026-09-01");
 
   type SeedEmployee = { id: string; departmentName: string; isManager?: boolean };
   const allEmployees: SeedEmployee[] = [];
+  const employeeRows: Prisma.EmployeeCreateManyInput[] = [];
+  const departmentHeads: { departmentId: string; headId: string }[] = [];
 
   // 1. Executives (top of org chart, no manager)
   const exec = departmentMap["Executive"];
-  const ceo = await prisma.employee.create({
-    data: {
-      employeeCode: "EMP0001",
-      firstName: "Alemayehu",
-      lastName: "Tesfaye",
-      email: "ceo@company.com",
-      gender: Gender.MALE,
-      hireDate: new Date("2016-01-15"),
-      employmentStatus: EmploymentStatus.ACTIVE,
-      departmentId: exec.id,
-      positionId: exec.positionIds["Chief Executive Officer"],
-    },
+  const ceoId = crypto.randomUUID();
+  employeeRows.push({
+    id: ceoId,
+    employeeCode: "EMP0001",
+    firstName: "Alemayehu",
+    lastName: "Tesfaye",
+    email: "ceo@company.com",
+    gender: Gender.MALE,
+    hireDate: new Date("2016-01-15"),
+    employmentStatus: EmploymentStatus.ACTIVE,
+    departmentId: exec.id,
+    positionId: exec.positionIds["Chief Executive Officer"],
   });
-  allEmployees.push({ id: ceo.id, departmentName: "Executive", isManager: true });
+  allEmployees.push({ id: ceoId, departmentName: "Executive", isManager: true });
 
-  const coo = await prisma.employee.create({
-    data: {
-      employeeCode: "EMP0002",
-      firstName: "Sara",
-      lastName: "Mulugeta",
-      email: "coo@company.com",
-      gender: Gender.FEMALE,
-      hireDate: new Date("2016-03-01"),
-      employmentStatus: EmploymentStatus.ACTIVE,
-      departmentId: exec.id,
-      positionId: exec.positionIds["Chief Operating Officer"],
-      managerId: ceo.id,
-    },
+  const cooId = crypto.randomUUID();
+  employeeRows.push({
+    id: cooId,
+    employeeCode: "EMP0002",
+    firstName: "Sara",
+    lastName: "Mulugeta",
+    email: "coo@company.com",
+    gender: Gender.FEMALE,
+    hireDate: new Date("2016-03-01"),
+    employmentStatus: EmploymentStatus.ACTIVE,
+    departmentId: exec.id,
+    positionId: exec.positionIds["Chief Operating Officer"],
+    managerId: ceoId,
   });
-  allEmployees.push({ id: coo.id, departmentName: "Executive", isManager: true });
-
-  await prisma.department.update({ where: { id: exec.id }, data: { headId: ceo.id } });
+  allEmployees.push({ id: cooId, departmentName: "Executive", isManager: true });
+  departmentHeads.push({ departmentId: exec.id, headId: ceoId });
 
   let empCounter = 3;
   const TARGET_TOTAL = 200;
@@ -176,67 +170,75 @@ async function main() {
     const { id: departmentId, positionIds } = departmentMap[dept.name];
     const managerTitle = dept.positions.find((p) => /manager|lead/i.test(p)) ?? dept.positions[0];
 
-    const manager = await prisma.employee.create({
-      data: {
-        employeeCode: `EMP${String(empCounter++).padStart(4, "0")}`,
-        firstName: randomFrom(FIRST_NAMES),
-        lastName: randomFrom(LAST_NAMES),
-        email: `${dept.name.toLowerCase().replace(/\s+/g, ".")}.manager@company.com`,
-        gender: randomFrom([Gender.MALE, Gender.FEMALE]),
-        hireDate: randomDateBetween(hireRangeStart, new Date("2020-01-01")),
-        employmentStatus: EmploymentStatus.ACTIVE,
-        departmentId,
-        positionId: positionIds[managerTitle],
-        managerId: coo.id,
-      },
+    const managerId = crypto.randomUUID();
+    employeeRows.push({
+      id: managerId,
+      employeeCode: `EMP${String(empCounter++).padStart(4, "0")}`,
+      firstName: randomFrom(FIRST_NAMES),
+      lastName: randomFrom(LAST_NAMES),
+      email: `${dept.name.toLowerCase().replace(/\s+/g, ".")}.manager@company.com`,
+      gender: randomFrom([Gender.MALE, Gender.FEMALE]),
+      hireDate: randomDateBetween(hireRangeStart, new Date("2020-01-01")),
+      employmentStatus: EmploymentStatus.ACTIVE,
+      departmentId,
+      positionId: positionIds[managerTitle],
+      managerId: cooId,
     });
-    allEmployees.push({ id: manager.id, departmentName: dept.name, isManager: true });
-    await prisma.department.update({ where: { id: departmentId }, data: { headId: manager.id } });
+    allEmployees.push({ id: managerId, departmentName: dept.name, isManager: true });
+    departmentHeads.push({ departmentId, headId: managerId });
 
     for (let i = 0; i < perDept - 1; i++) {
       const title = randomFrom(dept.positions.filter((p) => p !== managerTitle));
       const firstName = randomFrom(FIRST_NAMES);
       const lastName = randomFrom(LAST_NAMES);
       const code = `EMP${String(empCounter).padStart(4, "0")}`;
-      const emp = await prisma.employee.create({
-        data: {
-          employeeCode: code,
-          firstName,
-          lastName,
-          email: `${firstName}.${lastName}.${empCounter}@company.com`.toLowerCase(),
-          gender: randomFrom([Gender.MALE, Gender.FEMALE]),
-          hireDate: randomDateBetween(hireRangeStart, hireRangeEnd),
-          employmentStatus: EmploymentStatus.ACTIVE,
-          departmentId,
-          positionId: positionIds[title],
-          managerId: manager.id,
-        },
+      const empId = crypto.randomUUID();
+      employeeRows.push({
+        id: empId,
+        employeeCode: code,
+        firstName,
+        lastName,
+        email: `${firstName}.${lastName}.${empCounter}@company.com`.toLowerCase(),
+        gender: randomFrom([Gender.MALE, Gender.FEMALE]),
+        hireDate: randomDateBetween(hireRangeStart, hireRangeEnd),
+        employmentStatus: EmploymentStatus.ACTIVE,
+        departmentId,
+        positionId: positionIds[title],
+        managerId,
       });
-      allEmployees.push({ id: emp.id, departmentName: dept.name });
+      allEmployees.push({ id: empId, departmentName: dept.name });
       empCounter++;
     }
   }
+
+  await prisma.employee.createMany({ data: employeeRows });
+  await Promise.all(
+    departmentHeads.map(({ departmentId, headId }) =>
+      prisma.department.update({ where: { id: departmentId }, data: { headId } })
+    )
+  );
 
   console.log(`Created ${allEmployees.length} employees.`);
 
   // Leave balances for current year
   const leaveTypes = await prisma.leaveType.findMany();
   const year = new Date().getFullYear();
-  for (const { id: employeeId } of allEmployees) {
-    for (const lt of leaveTypes) {
-      await prisma.leaveBalance.create({
-        data: {
-          employeeId,
-          leaveTypeId: lt.id,
-          year,
-          allocatedDays: lt.defaultDaysPerYear,
-          usedDays: 0,
-        },
-      });
-    }
-  }
+  const leaveBalanceRows = allEmployees.flatMap(({ id: employeeId }) =>
+    leaveTypes.map((lt) => ({
+      employeeId,
+      leaveTypeId: lt.id,
+      year,
+      allocatedDays: lt.defaultDaysPerYear,
+      usedDays: 0,
+    }))
+  );
+  await prisma.leaveBalance.createMany({ data: leaveBalanceRows });
 
-  // Salary structures
+  // Salary structures. IDs are generated here (rather than left to the DB default)
+  // so EmployeeSalaryComponent rows can be built in the same pass and both batched
+  // into single createMany calls instead of ~1,000 sequential round trips.
+  const salaryRows: { id: string; employeeId: string; basicSalary: number }[] = [];
+  const componentRows: { employeeSalaryId: string; payComponentId: string; amount: number }[] = [];
   for (const emp of allEmployees) {
     const basicSalary =
       emp.departmentName === "Executive"
@@ -245,21 +247,20 @@ async function main() {
           ? 5000 + Math.random() * 2000
           : 2500 + Math.random() * 2000;
 
-    const salary = await prisma.employeeSalary.create({
-      data: { employeeId: emp.id, basicSalary: Math.round(basicSalary) },
-    });
+    const salaryId = crypto.randomUUID();
+    salaryRows.push({ id: salaryId, employeeId: emp.id, basicSalary: Math.round(basicSalary) });
 
     for (const pc of payComponents) {
       const amount = pc.isPercentage ? Math.round((basicSalary * pc.defaultValue) / 100) : pc.defaultValue;
-      await prisma.employeeSalaryComponent.create({
-        data: { employeeSalaryId: salary.id, payComponentId: pc.id, amount },
-      });
+      componentRows.push({ employeeSalaryId: salaryId, payComponentId: pc.id, amount });
     }
   }
+  await prisma.employeeSalary.createMany({ data: salaryRows });
+  await prisma.employeeSalaryComponent.createMany({ data: componentRows });
   console.log(`Created salary structures for ${allEmployees.length} employees.`);
 
   // Seed login users for key roles
-  const superAdminEmp = ceo;
+  const superAdminEmp = { id: ceoId };
   const hrManagerEmp = allEmployees.find((e) => e.departmentName === "Human Resources");
   const deptManagerEmp = allEmployees.find((e) => e.departmentName === "Engineering");
   const regularEmp = allEmployees[allEmployees.length - 1];
@@ -435,6 +436,9 @@ async function main() {
     },
   });
 
+  const payslipRows: Prisma.PayslipCreateManyInput[] = [];
+  const payslipLineRows: Prisma.PayslipLineCreateManyInput[] = [];
+
   for (const salary of salariesWithComponents) {
     const earningLines = [
       { name: "Basic Salary", type: "EARNING" as const, amount: salary.basicSalary },
@@ -449,17 +453,22 @@ async function main() {
     const grossPay = earningLines.reduce((sum, l) => sum + l.amount, 0);
     const totalDeductions = deductionLines.reduce((sum, l) => sum + l.amount, 0);
 
-    await prisma.payslip.create({
-      data: {
-        payrollRunId: run.id,
-        employeeId: salary.employeeId,
-        grossPay,
-        totalDeductions,
-        netPay: grossPay - totalDeductions,
-        lines: { createMany: { data: [...earningLines, ...deductionLines] } },
-      },
+    const payslipId = crypto.randomUUID();
+    payslipRows.push({
+      id: payslipId,
+      payrollRunId: run.id,
+      employeeId: salary.employeeId,
+      grossPay,
+      totalDeductions,
+      netPay: grossPay - totalDeductions,
     });
+    for (const line of [...earningLines, ...deductionLines]) {
+      payslipLineRows.push({ payslipId, ...line });
+    }
   }
+
+  await prisma.payslip.createMany({ data: payslipRows });
+  await prisma.payslipLine.createMany({ data: payslipLineRows });
   console.log(`Created demo payroll run for ${lastMonth}/${lastMonthYear} with ${salariesWithComponents.length} payslips.`);
 
   // Goals for a few employees
@@ -679,7 +688,31 @@ async function main() {
   console.log("Created sample announcements.");
 }
 
-main()
+// main() starts by truncating everything, so retrying it from scratch after a
+// transient connection drop (common against a remote DB from a flaky network) is
+// safe and idempotent — cheaper than hunting down every call site that could drop.
+const MAX_ATTEMPTS = 12;
+const RETRY_DELAY_MS = 5000;
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function runWithRetry() {
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      await main();
+      return;
+    } catch (e) {
+      console.error(`Attempt ${attempt}/${MAX_ATTEMPTS} failed:`, e instanceof Error ? e.message : e);
+      if (attempt === MAX_ATTEMPTS) throw e;
+      console.log(`Waiting ${RETRY_DELAY_MS}ms before retrying from a clean slate...`);
+      await sleep(RETRY_DELAY_MS);
+    }
+  }
+}
+
+runWithRetry()
   .catch((e) => {
     console.error(e);
     process.exit(1);

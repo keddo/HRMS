@@ -27,6 +27,7 @@ export default async function EmployeesPage() {
     positionTitle: e.position?.title ?? null,
     employmentStatus: e.employmentStatus,
     hireDate: e.hireDate.toISOString(),
+    avatarUrl: e.avatarUrl,
   }));
 
   return (
