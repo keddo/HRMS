@@ -1,6 +1,8 @@
+import Link from "next/link";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { isAdmin } from "@/lib/rbac";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MyPayslipsTable, type MyPayslipRow } from "@/components/payroll/my-payslips-table";
 import { PayrollRunsTable, type PayrollRunRow } from "@/components/payroll/payroll-runs-table";
@@ -18,7 +20,7 @@ export default async function PayrollPage() {
   const [myPayslips, runs, currentRun, mySalary] = await Promise.all([
     employeeId
       ? prisma.payslip.findMany({
-          where: { employeeId },
+          where: { employeeId, payrollRun: { status: "PROCESSED" } },
           include: { payrollRun: true },
           orderBy: [{ payrollRun: { year: "desc" } }, { payrollRun: { month: "desc" } }],
         })
@@ -68,14 +70,17 @@ export default async function PayrollPage() {
             {admin ? "Run payroll and view payslips." : "View your payslip history."}
           </p>
         </div>
-        {admin && (
-          <RunPayrollButton
-            month={currentMonth}
-            year={currentYear}
-            label={currentRun ? "Already Run This Month" : "Run Payroll This Month"}
-            disabled={!!currentRun}
-          />
+        {admin && currentRun?.status === "DRAFT" && (
+          <Button asChild>
+            <Link href={`/payroll/runs/${currentRun.id}`}>Review Draft Payroll</Link>
+          </Button>
         )}
+        {admin && currentRun?.status === "PROCESSED" && (
+          <Button disabled variant="outline">
+            Already Run This Month
+          </Button>
+        )}
+        {admin && !currentRun && <RunPayrollButton month={currentMonth} year={currentYear} />}
       </div>
 
       <Tabs defaultValue={admin ? "runs" : "mine"}>

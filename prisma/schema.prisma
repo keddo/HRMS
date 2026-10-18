@@ -316,15 +316,31 @@ enum PayrollRunStatus {
 }
 
 model PayComponent {
-  id           String           @id @default(cuid())
-  name         String           @unique
-  type         PayComponentType
-  isPercentage Boolean          @default(false)
-  defaultValue Float            @default(0)
-  isActive     Boolean          @default(true)
-  createdAt    DateTime         @default(now())
+  id               String           @id @default(cuid())
+  name             String           @unique
+  type             PayComponentType
+  isPercentage     Boolean          @default(false)
+  isProgressiveTax Boolean          @default(false)
+  defaultValue     Float            @default(0)
+  isActive         Boolean          @default(true)
+  createdAt        DateTime         @default(now())
 
   salaryComponents EmployeeSalaryComponent[]
+}
+
+/**
+ * A marginal tax bracket, in ascending order by minAmount. maxAmount null means no upper bound
+ * (the top bracket). Used to compute a PayComponent flagged isProgressiveTax.
+ */
+model TaxBracket {
+  id        String   @id @default(cuid())
+  minAmount Float
+  maxAmount Float?
+  rate      Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([minAmount])
 }
 
 model EmployeeSalary {
@@ -380,12 +396,13 @@ model Payslip {
 }
 
 model PayslipLine {
-  id        String           @id @default(cuid())
-  payslipId String
-  payslip   Payslip          @relation(fields: [payslipId], references: [id], onDelete: Cascade)
-  name      String
-  type      PayComponentType
-  amount    Float
+  id           String           @id @default(cuid())
+  payslipId    String
+  payslip      Payslip          @relation(fields: [payslipId], references: [id], onDelete: Cascade)
+  name         String
+  type         PayComponentType
+  amount       Float
+  isAdjustment Boolean          @default(false)
 }
 
 // ---------- Performance ----------

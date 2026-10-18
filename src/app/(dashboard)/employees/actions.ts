@@ -223,13 +223,16 @@ export async function createEmployee(formData: FormData) {
   });
 
   if (parsed.basicSalary) {
-    const payComponents = await prisma.payComponent.findMany({ where: { isActive: true } });
+    const [payComponents, taxBrackets] = await Promise.all([
+      prisma.payComponent.findMany({ where: { isActive: true } }),
+      prisma.taxBracket.findMany({ orderBy: { minAmount: "asc" } }),
+    ]);
     await prisma.$transaction(async (tx) => {
       const salary = await tx.employeeSalary.create({
         data: { employeeId: employee.id, basicSalary: parsed.basicSalary!, currency: "ETB" },
       });
       for (const pc of payComponents) {
-        const amount = resolveComponentAmount(parsed.basicSalary!, pc);
+        const amount = resolveComponentAmount(parsed.basicSalary!, pc, taxBrackets);
         await tx.employeeSalaryComponent.create({
           data: { employeeSalaryId: salary.id, payComponentId: pc.id, amount },
         });

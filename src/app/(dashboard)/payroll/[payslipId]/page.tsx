@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { canManageEmployee } from "@/lib/rbac";
+import { canManageEmployee, isAdmin } from "@/lib/rbac";
 import { formatCurrency } from "@/lib/currency";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PrintButton } from "@/components/payroll/print-button";
@@ -32,6 +32,8 @@ export default async function PayslipDetailPage({
 
   const authorized = canManageEmployee(session?.user.role, session?.user.employeeId, payslip.employeeId);
   if (!authorized) notFound();
+  // A draft payroll run isn't final yet, so only admins reviewing it can see its payslips.
+  if (payslip.payrollRun.status === "DRAFT" && !isAdmin(session?.user.role)) notFound();
 
   const currency = payslip.employee.salary?.currency ?? "ETB";
   const earnings = payslip.lines.filter((l) => l.type === "EARNING");
@@ -70,7 +72,10 @@ export default async function PayslipDetailPage({
             <p className="font-medium text-muted-foreground">Earnings</p>
             {earnings.map((l) => (
               <div key={l.id} className="flex justify-between">
-                <span>{l.name}</span>
+                <span>
+                  {l.name}
+                  {l.isAdjustment && <span className="text-muted-foreground"> (one-time)</span>}
+                </span>
                 <span>{formatCurrency(l.amount, currency)}</span>
               </div>
             ))}
@@ -85,7 +90,10 @@ export default async function PayslipDetailPage({
               <p className="font-medium text-muted-foreground">Deductions</p>
               {deductions.map((l) => (
                 <div key={l.id} className="flex justify-between">
-                  <span>{l.name}</span>
+                  <span>
+                    {l.name}
+                    {l.isAdjustment && <span className="text-muted-foreground"> (one-time)</span>}
+                  </span>
                   <span>- {formatCurrency(l.amount, currency)}</span>
                 </div>
               ))}

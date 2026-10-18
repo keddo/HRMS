@@ -34,10 +34,13 @@ type PayComponentRow = {
   name: string;
   type: string;
   isPercentage: boolean;
+  isProgressiveTax: boolean;
   defaultValue: number;
   isActive: boolean;
   usageCount: number;
 };
+
+type CalcMode = "FIXED" | "PERCENTAGE" | "PROGRESSIVE_TAX";
 
 function PayComponentForm({
   defaultValues,
@@ -45,17 +48,32 @@ function PayComponentForm({
   isPending,
   error,
 }: {
-  defaultValues?: { name: string; type: string; isPercentage: boolean; defaultValue: string };
+  defaultValues?: {
+    name: string;
+    type: string;
+    isPercentage: boolean;
+    isProgressiveTax: boolean;
+    defaultValue: string;
+  };
   onSubmit: (formData: FormData) => void;
   isPending: boolean;
   error: string | null;
 }) {
   const [type, setType] = useState(defaultValues?.type ?? "EARNING");
-  const [isPercentage, setIsPercentage] = useState(defaultValues?.isPercentage ?? false);
+  const initialMode: CalcMode = defaultValues?.isProgressiveTax
+    ? "PROGRESSIVE_TAX"
+    : defaultValues?.isPercentage
+      ? "PERCENTAGE"
+      : "FIXED";
+  const [mode, setMode] = useState<CalcMode>(initialMode);
 
   const handleSubmit = (formData: FormData) => {
     formData.set("type", type);
-    if (isPercentage) formData.set("isPercentage", "on");
+    if (mode === "PERCENTAGE") formData.set("isPercentage", "on");
+    if (mode === "PROGRESSIVE_TAX") {
+      formData.set("isProgressiveTax", "on");
+      formData.set("defaultValue", "0");
+    }
     onSubmit(formData);
   };
 
@@ -77,22 +95,40 @@ function PayComponentForm({
           </SelectContent>
         </Select>
       </div>
-      <label className="flex items-center gap-2 text-sm">
-        <Checkbox checked={isPercentage} onCheckedChange={(v) => setIsPercentage(!!v)} />
-        Percentage of basic salary
-      </label>
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="defaultValue">{isPercentage ? "Default percentage" : "Default amount"}</Label>
-        <Input
-          id="defaultValue"
-          name="defaultValue"
-          type="number"
-          min="0"
-          step="0.01"
-          defaultValue={defaultValues?.defaultValue ?? "0"}
-          required
-        />
+        <Label>Calculation</Label>
+        <Select value={mode} onValueChange={(v) => setMode(v as CalcMode)}>
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="FIXED">Fixed amount</SelectItem>
+            <SelectItem value="PERCENTAGE">Percentage of basic salary</SelectItem>
+            <SelectItem value="PROGRESSIVE_TAX">Progressive tax brackets</SelectItem>
+          </SelectContent>
+        </Select>
+        {mode === "PROGRESSIVE_TAX" && (
+          <p className="text-xs text-muted-foreground">
+            Computed from the Tax Brackets tab. The amount below is ignored.
+          </p>
+        )}
       </div>
+      {mode !== "PROGRESSIVE_TAX" && (
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="defaultValue">
+            {mode === "PERCENTAGE" ? "Default percentage" : "Default amount"}
+          </Label>
+          <Input
+            id="defaultValue"
+            name="defaultValue"
+            type="number"
+            min="0"
+            step="0.01"
+            defaultValue={defaultValues?.defaultValue ?? "0"}
+            required
+          />
+        </div>
+      )}
       {error && <p className="text-sm text-destructive">{error}</p>}
       <DialogFooter>
         <Button type="submit" disabled={isPending}>
@@ -201,7 +237,11 @@ export function PayComponentsPanel({ components }: { components: PayComponentRow
                 <p className="font-medium">{c.name}</p>
                 <p className="text-xs text-muted-foreground">
                   {c.type === "EARNING" ? "Earning" : "Deduction"} ·{" "}
-                  {c.isPercentage ? `${c.defaultValue}% of basic salary` : c.defaultValue}
+                  {c.isProgressiveTax
+                    ? "Progressive tax brackets"
+                    : c.isPercentage
+                      ? `${c.defaultValue}% of basic salary`
+                      : c.defaultValue}
                 </p>
               </div>
               <div className="flex items-center gap-3">
@@ -239,6 +279,7 @@ export function PayComponentsPanel({ components }: { components: PayComponentRow
                 name: editing.name,
                 type: editing.type,
                 isPercentage: editing.isPercentage,
+                isProgressiveTax: editing.isProgressiveTax,
                 defaultValue: String(editing.defaultValue),
               }}
               onSubmit={handleUpdate}

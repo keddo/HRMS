@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { isAdmin } from "@/lib/rbac";
 import { formatCurrency } from "@/lib/currency";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -13,6 +14,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { RunStatusActions } from "@/components/payroll/run-status-actions";
+import { PayslipAdjustments } from "@/components/payroll/payslip-adjustment-dialog";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -32,7 +35,10 @@ export default async function PayrollRunDetailPage({
     where: { id: runId },
     include: {
       payslips: {
-        include: { employee: { include: { department: true, salary: true } } },
+        include: {
+          employee: { include: { department: true, salary: true } },
+          lines: { where: { isAdjustment: true } },
+        },
         orderBy: { employee: { firstName: "asc" } },
       },
     },
@@ -40,18 +46,31 @@ export default async function PayrollRunDetailPage({
 
   if (!run) notFound();
 
+  const isDraft = run.status === "DRAFT";
   const totalNet = run.payslips.reduce((sum, p) => sum + p.netPay, 0);
   const currency = run.payslips[0]?.employee.salary?.currency ?? "ETB";
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Payroll — {MONTH_NAMES[run.month - 1]} {run.year}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {run.payslips.length} employees · Total net pay {formatCurrency(totalNet, currency)}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-semibold tracking-tight">
+              Payroll — {MONTH_NAMES[run.month - 1]} {run.year}
+            </h1>
+            <Badge variant={isDraft ? "secondary" : "default"}>{run.status}</Badge>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {run.payslips.length} employees · Total net pay {formatCurrency(totalNet, currency)}
+          </p>
+          {isDraft && (
+            <p className="mt-1 text-sm text-muted-foreground">
+              Review the figures below, add any one-time bonuses or deductions, then approve to
+              notify employees. Nothing is visible to employees until approved.
+            </p>
+          )}
+        </div>
+        {isDraft && <RunStatusActions runId={run.id} employeeCount={run.payslips.length} />}
       </div>
 
       <Card>
@@ -64,6 +83,7 @@ export default async function PayrollRunDetailPage({
                 <TableHead>Gross Pay</TableHead>
                 <TableHead>Deductions</TableHead>
                 <TableHead>Net Pay</TableHead>
+                {isDraft && <TableHead>Adjustments</TableHead>}
                 <TableHead />
               </TableRow>
             </TableHeader>
@@ -79,6 +99,15 @@ export default async function PayrollRunDetailPage({
                     - {formatCurrency(p.totalDeductions, currency)}
                   </TableCell>
                   <TableCell className="font-medium">{formatCurrency(p.netPay, currency)}</TableCell>
+                  {isDraft && (
+                    <TableCell>
+                      <PayslipAdjustments
+                        payslipId={p.id}
+                        adjustments={p.lines}
+                        currency={currency}
+                      />
+                    </TableCell>
+                  )}
                   <TableCell className="text-right">
                     <Link href={`/payroll/${p.id}`} className="text-sm text-primary hover:underline">
                       View

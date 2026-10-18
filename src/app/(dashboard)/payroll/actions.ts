@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import type { Prisma } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { isAdmin } from "@/lib/rbac";
@@ -26,7 +27,10 @@ export async function setEmployeeSalary(formData: FormData) {
     currency: formData.get("currency") || "ETB",
   });
 
-  const payComponents = await prisma.payComponent.findMany({ where: { isActive: true } });
+  const [payComponents, taxBrackets] = await Promise.all([
+    prisma.payComponent.findMany({ where: { isActive: true } }),
+    prisma.taxBracket.findMany({ orderBy: { minAmount: "asc" } }),
+  ]);
 
   await prisma.$transaction(async (tx) => {
     const salary = await tx.employeeSalary.upsert({
@@ -40,7 +44,7 @@ export async function setEmployeeSalary(formData: FormData) {
     });
 
     for (const pc of payComponents) {
-      const amount = resolveComponentAmount(parsed.basicSalary, pc);
+      const amount = resolveComponentAmount(parsed.basicSalary, pc, taxBrackets);
       await tx.employeeSalaryComponent.upsert({
         where: {
           employeeSalaryId_payComponentId: {
@@ -79,7 +83,9 @@ export async function setEmployeeSalary(formData: FormData) {
   revalidatePath("/payroll");
 }
 
-export async function runPayroll(month: number, year: number) {
+/** Generates a draft payroll run for review. Payslips aren't visible to employees, and nothing
+ * is final, until an admin calls `approvePayrollRun`. */
+export async function runPayroll(month: number, year: number): Promise<string> {
   const session = await auth();
   if (!isAdmin(session?.user.role)) throw new Error("You do not have permission to run payroll.");
   await assertUserExists(session!.user.id);
@@ -91,7 +97,6 @@ export async function runPayroll(month: number, year: number) {
     where: { employmentStatus: "ACTIVE", salary: { isNot: null } },
     include: {
       salary: { include: { components: { include: { payComponent: true } } } },
-      user: true,
     },
   });
 
@@ -99,15 +104,9 @@ export async function runPayroll(month: number, year: number) {
     throw new Error("No active employees have a salary configured yet.");
   }
 
-  await prisma.$transaction(async (tx) => {
+  const runId = await prisma.$transaction(async (tx) => {
     const run = await tx.payrollRun.create({
-      data: {
-        month,
-        year,
-        status: "PROCESSED",
-        processedAt: new Date(),
-        processedById: session!.user.id,
-      },
+      data: { month, year, status: "DRAFT" },
     });
 
     for (const emp of employees) {
@@ -132,6 +131,8 @@ export async function runPayroll(month: number, year: number) {
         },
       });
     }
+
+    return run.id;
   });
 
   await recordAudit({
@@ -139,13 +140,150 @@ export async function runPayroll(month: number, year: number) {
     action: "CREATE",
     entityType: "PayrollRun",
     entityId: `${month}-${year}`,
-    summary: `Ran payroll for ${month}/${year} covering ${employees.length} employees`,
+    summary: `Generated draft payroll for ${month}/${year} covering ${employees.length} employees`,
+  });
+
+  revalidatePath("/payroll");
+  return runId;
+}
+
+/** Finalizes a draft payroll run: locks it, timestamps/attributes it, and notifies employees. */
+export async function approvePayrollRun(runId: string) {
+  const session = await auth();
+  if (!isAdmin(session?.user.role)) throw new Error("You do not have permission to approve payroll.");
+
+  const run = await prisma.payrollRun.findUnique({
+    where: { id: runId },
+    include: { payslips: { include: { employee: { include: { user: true } } } } },
+  });
+  if (!run) throw new Error("Payroll run not found.");
+  if (run.status !== "DRAFT") throw new Error("This payroll run has already been processed.");
+
+  await prisma.payrollRun.update({
+    where: { id: runId },
+    data: { status: "PROCESSED", processedAt: new Date(), processedById: session!.user.id },
+  });
+
+  await recordAudit({
+    actorId: session!.user.id,
+    action: "UPDATE",
+    entityType: "PayrollRun",
+    entityId: runId,
+    summary: `Approved payroll for ${run.month}/${run.year}`,
   });
 
   await notifyUsers(
-    employees.filter((e) => e.user).map((e) => e.user!.id),
-    { title: `Payslip available for ${month}/${year}`, link: "/payroll" }
+    run.payslips.filter((p) => p.employee.user).map((p) => p.employee.user!.id),
+    { title: `Payslip available for ${run.month}/${run.year}`, link: "/payroll" }
   );
 
   revalidatePath("/payroll");
+  revalidatePath(`/payroll/runs/${runId}`);
+}
+
+/** Deletes a draft payroll run so it can be re-run from scratch. Processed runs are permanent. */
+export async function cancelPayrollRun(runId: string) {
+  const session = await auth();
+  if (!isAdmin(session?.user.role)) throw new Error("You do not have permission to cancel payroll.");
+
+  const run = await prisma.payrollRun.findUnique({ where: { id: runId } });
+  if (!run) throw new Error("Payroll run not found.");
+  if (run.status !== "DRAFT") throw new Error("Only a draft payroll run can be cancelled.");
+
+  await prisma.payrollRun.delete({ where: { id: runId } });
+
+  await recordAudit({
+    actorId: session!.user.id,
+    action: "DELETE",
+    entityType: "PayrollRun",
+    entityId: runId,
+    summary: `Cancelled draft payroll for ${run.month}/${run.year}`,
+  });
+
+  revalidatePath("/payroll");
+}
+
+const adjustmentSchema = z.object({
+  name: z.string().min(1),
+  type: z.enum(["EARNING", "DEDUCTION"]),
+  amount: z.coerce.number().positive(),
+});
+
+async function recomputePayslipTotals(tx: Prisma.TransactionClient, payslipId: string) {
+  const lines = await tx.payslipLine.findMany({ where: { payslipId } });
+  const grossPay = lines.filter((l) => l.type === "EARNING").reduce((s, l) => s + l.amount, 0);
+  const totalDeductions = lines.filter((l) => l.type === "DEDUCTION").reduce((s, l) => s + l.amount, 0);
+  await tx.payslip.update({
+    where: { id: payslipId },
+    data: { grossPay, totalDeductions, netPay: grossPay - totalDeductions },
+  });
+}
+
+/** Adds a one-time bonus or deduction to a payslip. Only allowed while its run is still a draft. */
+export async function addPayslipAdjustment(payslipId: string, formData: FormData) {
+  const session = await auth();
+  if (!isAdmin(session?.user.role)) throw new Error("You do not have permission to adjust payslips.");
+
+  const parsed = adjustmentSchema.parse({
+    name: formData.get("name"),
+    type: formData.get("type"),
+    amount: formData.get("amount"),
+  });
+
+  const payslip = await prisma.payslip.findUnique({
+    where: { id: payslipId },
+    include: { payrollRun: true, employee: true },
+  });
+  if (!payslip) throw new Error("Payslip not found.");
+  if (payslip.payrollRun.status !== "DRAFT") {
+    throw new Error("Can only adjust payslips in a draft payroll run.");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.payslipLine.create({
+      data: { payslipId, name: parsed.name, type: parsed.type, amount: parsed.amount, isAdjustment: true },
+    });
+    await recomputePayslipTotals(tx, payslipId);
+  });
+
+  await recordAudit({
+    actorId: session!.user.id,
+    action: "UPDATE",
+    entityType: "Payslip",
+    entityId: payslipId,
+    summary: `Added ${parsed.type.toLowerCase()} "${parsed.name}" (${parsed.amount}) for ${payslip.employee.firstName} ${payslip.employee.lastName}`,
+  });
+
+  revalidatePath(`/payroll/runs/${payslip.payrollRunId}`);
+}
+
+/** Removes a one-time adjustment. Only allowed while its run is still a draft. */
+export async function removePayslipAdjustment(lineId: string) {
+  const session = await auth();
+  if (!isAdmin(session?.user.role)) throw new Error("You do not have permission to adjust payslips.");
+
+  const line = await prisma.payslipLine.findUnique({
+    where: { id: lineId },
+    include: { payslip: { include: { payrollRun: true } } },
+  });
+  if (!line) throw new Error("Adjustment not found.");
+  if (!line.isAdjustment) throw new Error("Only one-time adjustments can be removed this way.");
+  if (line.payslip.payrollRun.status !== "DRAFT") {
+    throw new Error("Can only adjust payslips in a draft payroll run.");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.payslipLine.delete({ where: { id: lineId } });
+    await recomputePayslipTotals(tx, line.payslipId);
+  });
+
+  await recordAudit({
+    actorId: session!.user.id,
+    action: "UPDATE",
+    entityType: "Payslip",
+    entityId: line.payslipId,
+    summary: `Removed adjustment "${line.name}"`,
+  });
+
+  revalidatePath(`/payroll/runs/${line.payslip.payrollRunId}`);
 }

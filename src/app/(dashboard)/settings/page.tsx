@@ -8,18 +8,20 @@ import { CompanyProfilePanel } from "@/components/settings/company-profile-panel
 import { SecurityPanel } from "@/components/settings/security-panel";
 import { HolidaysPanel } from "@/components/settings/holidays-panel";
 import { PayComponentsPanel } from "@/components/settings/pay-components-panel";
+import { TaxBracketsPanel } from "@/components/settings/tax-brackets-panel";
 
 export default async function SettingsPage() {
   const session = await auth();
   if (!isAdmin(session?.user.role)) redirect("/dashboard");
 
-  const [companySettings, holidays, payComponents] = await Promise.all([
+  const [companySettings, holidays, payComponents, taxBrackets] = await Promise.all([
     getCompanySettings(),
     prisma.holiday.findMany({ orderBy: { date: "asc" } }),
     prisma.payComponent.findMany({
       include: { _count: { select: { salaryComponents: true } } },
       orderBy: { name: "asc" },
     }),
+    prisma.taxBracket.findMany({ orderBy: { minAmount: "asc" } }),
   ]);
 
   return (
@@ -38,6 +40,7 @@ export default async function SettingsPage() {
           <TabsTrigger value="security">Security</TabsTrigger>
           <TabsTrigger value="holidays">Holidays</TabsTrigger>
           <TabsTrigger value="pay-components">Pay Components</TabsTrigger>
+          <TabsTrigger value="tax-brackets">Tax Brackets</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general">
@@ -68,9 +71,21 @@ export default async function SettingsPage() {
               name: pc.name,
               type: pc.type,
               isPercentage: pc.isPercentage,
+              isProgressiveTax: pc.isProgressiveTax,
               defaultValue: pc.defaultValue,
               isActive: pc.isActive,
               usageCount: pc._count.salaryComponents,
+            }))}
+          />
+        </TabsContent>
+
+        <TabsContent value="tax-brackets">
+          <TaxBracketsPanel
+            brackets={taxBrackets.map((b) => ({
+              id: b.id,
+              minAmount: b.minAmount,
+              maxAmount: b.maxAmount,
+              rate: b.rate,
             }))}
           />
         </TabsContent>

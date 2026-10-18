@@ -148,6 +148,7 @@ const payComponentSchema = z.object({
   name: z.string().min(1),
   type: z.enum(["EARNING", "DEDUCTION"]),
   isPercentage: z.coerce.boolean(),
+  isProgressiveTax: z.coerce.boolean(),
   defaultValue: z.coerce.number().min(0),
 });
 
@@ -157,6 +158,7 @@ export async function createPayComponent(formData: FormData) {
     name: formData.get("name"),
     type: formData.get("type"),
     isPercentage: formData.get("isPercentage") === "on",
+    isProgressiveTax: formData.get("isProgressiveTax") === "on",
     defaultValue: formData.get("defaultValue"),
   });
 
@@ -183,6 +185,7 @@ export async function updatePayComponent(id: string, formData: FormData) {
     name: formData.get("name"),
     type: formData.get("type"),
     isPercentage: formData.get("isPercentage") === "on",
+    isProgressiveTax: formData.get("isProgressiveTax") === "on",
     defaultValue: formData.get("defaultValue"),
   });
 
@@ -219,6 +222,96 @@ export async function setPayComponentActive(id: string, isActive: boolean) {
     entityType: "PayComponent",
     entityId: id,
     summary: `${isActive ? "Reactivated" : "Deactivated"} pay component ${component.name}`,
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/payroll");
+}
+
+// ---------- Tax Brackets ----------
+
+const taxBracketSchema = z
+  .object({
+    minAmount: z.coerce.number().min(0),
+    maxAmount: z.coerce.number().positive().optional(),
+    rate: z.coerce.number().min(0).max(100),
+  })
+  .refine((data) => data.maxAmount === undefined || data.maxAmount > data.minAmount, {
+    message: "Upper bound must be greater than the lower bound.",
+    path: ["maxAmount"],
+  });
+
+export async function createTaxBracket(formData: FormData) {
+  const session = await requireAdmin();
+  const parsed = taxBracketSchema.parse({
+    minAmount: formData.get("minAmount"),
+    maxAmount: formData.get("maxAmount") || undefined,
+    rate: formData.get("rate"),
+  });
+
+  const existing = await prisma.taxBracket.findUnique({ where: { minAmount: parsed.minAmount } });
+  if (existing) throw new Error("A bracket already starts at that amount.");
+
+  const bracket = await prisma.taxBracket.create({
+    data: { minAmount: parsed.minAmount, maxAmount: parsed.maxAmount ?? null, rate: parsed.rate },
+  });
+
+  await recordAudit({
+    actorId: session.user.id,
+    action: "CREATE",
+    entityType: "TaxBracket",
+    entityId: bracket.id,
+    summary: `Added tax bracket from ${parsed.minAmount} at ${parsed.rate}%`,
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/payroll");
+}
+
+export async function updateTaxBracket(id: string, formData: FormData) {
+  const session = await requireAdmin();
+  const parsed = taxBracketSchema.parse({
+    minAmount: formData.get("minAmount"),
+    maxAmount: formData.get("maxAmount") || undefined,
+    rate: formData.get("rate"),
+  });
+
+  const existing = await prisma.taxBracket.findUnique({ where: { minAmount: parsed.minAmount } });
+  if (existing && existing.id !== id) {
+    throw new Error("A bracket already starts at that amount.");
+  }
+
+  await prisma.taxBracket.update({
+    where: { id },
+    data: { minAmount: parsed.minAmount, maxAmount: parsed.maxAmount ?? null, rate: parsed.rate },
+  });
+
+  await recordAudit({
+    actorId: session.user.id,
+    action: "UPDATE",
+    entityType: "TaxBracket",
+    entityId: id,
+    summary: `Updated tax bracket from ${parsed.minAmount} to ${parsed.rate}%`,
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/payroll");
+}
+
+export async function deleteTaxBracket(id: string) {
+  const session = await requireAdmin();
+
+  const bracket = await prisma.taxBracket.findUnique({ where: { id } });
+  if (!bracket) throw new Error("Tax bracket not found.");
+
+  await prisma.taxBracket.delete({ where: { id } });
+
+  await recordAudit({
+    actorId: session.user.id,
+    action: "DELETE",
+    entityType: "TaxBracket",
+    entityId: id,
+    summary: `Removed tax bracket from ${bracket.minAmount}`,
   });
 
   revalidatePath("/settings");
